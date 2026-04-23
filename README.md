@@ -22,3 +22,11 @@ Each team member has their own folder:
 | Name | Link |
 |------|------|
 | Ines | [ines/index.html](ines/index.html) |
+
+## Skills
+
+Reusable Claude skills for the Solv team. Drop a folder here with a `SKILL.md` and any supporting files.
+
+| Skill | Description |
+|-------|-------------|
+| [cp-collection-report](skills/cp-collection-report/SKILL.md) | Build the partner-facing ClearPay Collection Metrics HTML dashboard for any partner and date range |
