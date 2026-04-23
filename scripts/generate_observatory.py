@@ -1,15 +1,18 @@
 """
 NextCare ClearPay Observatory — daily data refresh.
-Reads credentials from ../.env, connects to localhost Redshift tunnel,
-updates ines/nextcare-clearpay-observatory.html with the last 30 days of data.
+Uses the dbt Cloud MCP API (same connection Claude Code uses).
+No SSH tunnel or local Redshift credentials needed.
 """
 
 import json
-import os
 import re
 import sys
 from datetime import date, timedelta
 from pathlib import Path
+
+import os
+import urllib.request
+import urllib.error
 
 ROOT = Path(__file__).parent.parent
 
@@ -22,21 +25,50 @@ def load_env():
                 k, v = line.split("=", 1)
                 os.environ.setdefault(k.strip(), v.strip())
 
+load_env()
+
+DBT_URL = "https://eo424.us1.dbt.com/api/ai/v1/mcp/"
+DBT_HEADERS = {
+    "Authorization": f"token {os.environ['DBT_API_TOKEN']}",
+    "x-dbt-prod-environment-id": os.getenv("DBT_PROD_ENV_ID", "129791"),
+    "x-dbt-dev-environment-id": os.getenv("DBT_DEV_ENV_ID", "112599"),
+    "x-dbt-user-id": os.getenv("DBT_USER_ID", "192793"),
+    "Content-Type": "application/json",
+    "Accept": "application/json, text/event-stream",
+}
+
 def get_date_range(days=30):
     end = date.today() - timedelta(days=1)
     start = end - timedelta(days=days - 1)
     return str(start), str(end)
 
-def run_query(cursor, sql, start_date, end_date, group_id=13):
-    sql = sql\
-        .replace("{START_DATE}", start_date)\
-        .replace("{END_DATE}", end_date)\
-        .replace("{GROUP_ID}", str(group_id))
-    cursor.execute(sql)
-    rows = []
-    for row in cursor.fetchall():
-        rows.append([str(v) if hasattr(v, "isoformat") else v for v in row])
-    return rows
+def execute_sql(sql, request_id=1):
+    payload = json.dumps({
+        "jsonrpc": "2.0",
+        "method": "tools/call",
+        "params": {"name": "execute_sql", "arguments": {"sql": sql}},
+        "id": request_id,
+    }).encode()
+
+    req = urllib.request.Request(DBT_URL, data=payload, headers=DBT_HEADERS, method="POST")
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        raw = resp.read().decode()
+
+    # Parse SSE: find "data: {...}" line
+    for line in raw.splitlines():
+        if line.startswith("data:"):
+            envelope = json.loads(line[5:].strip())
+            if "error" in envelope:
+                raise RuntimeError(f"dbt error: {envelope['error']}")
+            result_text = envelope["result"]["content"][0]["text"]
+            result = json.loads(result_text)
+            # Convert [{col: val}, ...] to [[val, val, ...], ...]
+            if not result.get("data"):
+                return []
+            fields = [f["name"] for f in result["schema"]["fields"]]
+            return [[row.get(f) for f in fields] for row in result["data"]]
+
+    raise RuntimeError(f"No data line in response: {raw[:200]}")
 
 def inject(html_path, var_name, rows):
     content = html_path.read_text(encoding="utf-8")
@@ -53,9 +85,9 @@ QUERIES = {
     "RAW_DAILY": """
         WITH daily_bookings AS (
           SELECT calendar_date, SUM(total_bookings) as total_bookings
-          FROM solv.dbt.fact_location_daily
-          WHERE group_id = {GROUP_ID}
-            AND calendar_date BETWEEN '{START_DATE}' AND '{END_DATE}'
+          FROM {{ ref('fact_location_daily') }}
+          WHERE group_id = 13
+            AND calendar_date BETWEEN '{START}' AND '{END}'
           GROUP BY calendar_date
         ),
         daily_estimates AS (
@@ -86,10 +118,10 @@ QUERIES = {
             SUM(CASE WHEN cp.is_deductible_line_item AND cp.is_eligible_estimate_for_charge THEN 1 ELSE 0 END) as deductible_charged,
             SUM(CASE WHEN cp.is_coinsurance_line_item AND cp.is_eligible_estimate_for_charge THEN 1 ELSE 0 END) as coinsurance_charged,
             SUM(CASE WHEN cp.is_self_pay_line_item AND cp.is_eligible_estimate_for_charge THEN 1 ELSE 0 END) as self_pay_charged
-          FROM solv.dbt.fact_bookings_clearpay_payments cp
-          JOIN solv.dbt.dim_locations l ON cp.location_id = l.id
-          WHERE l.group_id = {GROUP_ID}
-            AND CAST(cp.booking_created_date AS DATE) BETWEEN '{START_DATE}' AND '{END_DATE}'
+          FROM {{ ref('fact_bookings_clearpay_payments') }} cp
+          JOIN {{ ref('dim_locations') }} l ON cp.location_id = l.id
+          WHERE l.group_id = 13
+            AND CAST(cp.booking_created_date AS DATE) BETWEEN '{START}' AND '{END}'
           GROUP BY CAST(cp.booking_created_date AS DATE)
         )
         SELECT
@@ -120,10 +152,10 @@ QUERIES = {
           ROUND(SUM(CASE WHEN cp.has_estimate AND cp.solv_estimate_in_network > 0
                     THEN GREATEST(cp.solv_estimate_in_network - COALESCE(cp.sum_paid_amount_pos, 0), 0)
                     ELSE 0 END)::numeric, 2) as missed
-        FROM solv.dbt.fact_bookings_clearpay_payments cp
-        JOIN solv.dbt.dim_locations l ON cp.location_id = l.id
-        WHERE l.group_id = {GROUP_ID}
-          AND CAST(cp.booking_created_date AS DATE) BETWEEN '{START_DATE}' AND '{END_DATE}'
+        FROM {{ ref('fact_bookings_clearpay_payments') }} cp
+        JOIN {{ ref('dim_locations') }} l ON cp.location_id = l.id
+        WHERE l.group_id = 13
+          AND CAST(cp.booking_created_date AS DATE) BETWEEN '{START}' AND '{END}'
         GROUP BY CAST(cp.booking_created_date AS DATE), l.state, l.name
         ORDER BY dt, l.state, l.name
     """,
@@ -148,12 +180,12 @@ QUERIES = {
           ROUND(AVG(cp.solv_estimate_in_network)::numeric, 2) as avg_est,
           ROUND(AVG(cp.sum_paid_amount_pos)::numeric, 2) as avg_chg,
           ROUND(AVG(COALESCE(cp.sum_paid_amount_pos, 0) - cp.solv_estimate_in_network)::numeric, 2) as avg_delta
-        FROM solv.dbt.fact_bookings_clearpay_payments cp
-        JOIN solv.dbt.dim_locations l ON cp.location_id = l.id
+        FROM {{ ref('fact_bookings_clearpay_payments') }} cp
+        JOIN {{ ref('dim_locations') }} l ON cp.location_id = l.id
         JOIN postgres.invoices inv ON inv.booking_id = cp.id AND inv.invoice_type = 'pos'
         JOIN postgres.charges ch ON ch.invoice_id = inv.id AND ch.status = 'succeeded'
-        WHERE l.group_id = {GROUP_ID}
-          AND CAST(cp.booking_created_date AS DATE) BETWEEN '{START_DATE}' AND '{END_DATE}'
+        WHERE l.group_id = 13
+          AND CAST(cp.booking_created_date AS DATE) BETWEEN '{START}' AND '{END}'
           AND cp.has_estimate = TRUE
           AND NOT cp.is_charged_exact_estimate
         GROUP BY 1, 2
@@ -178,12 +210,12 @@ QUERIES = {
           COALESCE(CAST(cp.sum_paid_amount_pos AS VARCHAR), '0') as pos_charged,
           CASE WHEN cp.is_self_pay_line_item THEN '1' ELSE '0' END as is_self_pay,
           COALESCE(ib.primary_insurance_returned_payer_name, '') as payer_name
-        FROM solv.dbt.fact_bookings_clearpay_payments cp
-        JOIN solv.dbt.dim_locations l ON cp.location_id = l.id
-        LEFT JOIN solv.dbt.fact_bookings_insurance_benefits_latest ib ON cp.id = ib.id
-        LEFT JOIN solv.dbt.int_bookings_rte_success_flag rte ON cp.id = rte.id
-        WHERE l.group_id = {GROUP_ID}
-          AND CAST(cp.booking_created_date AS DATE) BETWEEN '{START_DATE}' AND '{END_DATE}'
+        FROM {{ ref('fact_bookings_clearpay_payments') }} cp
+        JOIN {{ ref('dim_locations') }} l ON cp.location_id = l.id
+        LEFT JOIN {{ ref('fact_bookings_insurance_benefits_latest') }} ib ON cp.id = ib.id
+        LEFT JOIN {{ ref('int_bookings_rte_success_flag') }} rte ON cp.id = rte.id
+        WHERE l.group_id = 13
+          AND CAST(cp.booking_created_date AS DATE) BETWEEN '{START}' AND '{END}'
         ORDER BY cp.booking_created_date, l.name, cp.id
     """,
 
@@ -199,50 +231,29 @@ QUERIES = {
           0.0 as paid_other,
           SUM(fld.discharged_bookings_pos_invoices_created) as pos_invoices,
           SUM(fld.total_bookings) as total_bookings
-        FROM solv.dbt.fact_location_daily fld
-        WHERE fld.group_id = {GROUP_ID}
-          AND fld.calendar_date BETWEEN '{START_DATE}' AND '{END_DATE}'
+        FROM {{ ref('fact_location_daily') }} fld
+        WHERE fld.group_id = 13
+          AND fld.calendar_date BETWEEN '{START}' AND '{END}'
         GROUP BY fld.calendar_date
         ORDER BY fld.calendar_date
     """,
 }
 
 def main():
-    load_env()
-
-    host = os.getenv("REDSHIFT_HOST", "localhost")
-    port = int(os.getenv("REDSHIFT_PORT", "5439"))
-    user = os.environ["REDSHIFT_USER"]
-    password = os.environ["REDSHIFT_PASSWORD"]
-    dbname = os.getenv("REDSHIFT_DBNAME", "solv")
-
     start_date, end_date = get_date_range()
     print(f"Refreshing observatory: {start_date} → {end_date}")
 
-    try:
-        import redshift_connector
-        conn = redshift_connector.connect(
-            host=host, database=dbname, port=port, user=user, password=password
-        )
-    except ImportError:
-        import psycopg2
-        conn = psycopg2.connect(
-            host=host, port=port, user=user, password=password, dbname=dbname
-        )
-
     html_path = ROOT / "ines" / "nextcare-clearpay-observatory.html"
-    cursor = conn.cursor()
 
-    for var_name, sql in QUERIES.items():
-        print(f"  Querying {var_name}...")
+    for i, (var_name, sql) in enumerate(QUERIES.items(), start=1):
+        print(f"  Querying {var_name}...", end=" ", flush=True)
+        query = sql.replace("{START}", start_date).replace("{END}", end_date)
         try:
-            rows = run_query(cursor, sql, start_date, end_date)
+            rows = execute_sql(query, request_id=i)
             inject(html_path, var_name, rows)
         except Exception as e:
-            print(f"  ERROR on {var_name}: {e}", file=sys.stderr)
+            print(f"ERROR: {e}", file=sys.stderr)
 
-    cursor.close()
-    conn.close()
     print(f"Done. Data through {end_date}.")
 
 if __name__ == "__main__":
