@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClearPay Collection Metrics - <!-- PARTNER_NAME --> (Discharged)</title>
+<style>
+  :root {
+    --bg:#fff;--fg:#0a0a0a;--card:#fff;--muted:#f5f5f5;--muted-fg:#737373;--border:#e5e5e5;--radius:0.5rem;
+    --copay:#7c3aed;--dc:#2563eb;--self-pay:#d97706;--unclass:#6b7280;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--fg);line-height:1.5;-webkit-font-smoothing:antialiased;}
+  .header{position:sticky;top:0;z-index:20;border-bottom:1px solid var(--border);background:rgba(255,255,255,0.95);backdrop-filter:blur(8px);padding:0 24px;}
+  .header-inner{display:flex;align-items:center;justify-content:space-between;padding:10px 0;max-width:1600px;margin:0 auto;}
+  .header-left{display:flex;align-items:center;gap:12px;}
+  .badge{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:6px;background:var(--fg);color:var(--bg);font-size:13px;font-weight:600;}
+  .header h1{font-size:18px;font-weight:600;letter-spacing:-0.02em;}
+  .header-meta{font-size:12px;color:var(--muted-fg);}
+  .tabs{display:inline-flex;align-items:center;gap:4px;padding:4px;border-radius:12px;border:1px solid rgba(0,0,0,0.08);background:rgba(0,0,0,0.03);}
+  .tab{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:14px;font-weight:500;color:var(--muted-fg);cursor:pointer;white-space:nowrap;}
+  .tab.active{background:var(--bg);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,0.06);}
+  .tab svg{width:16px;height:16px;}
+  .content{max-width:1600px;margin:0 auto;padding:0 24px 48px;}
+  .filter-bar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:8px 12px;margin:8px 0 16px;}
+  .filter-label{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted-fg);}
+  .filter-value{font-size:13px;font-weight:500;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);}
+  .filter-sep{width:1px;height:25px;background:var(--border);}
+  .section-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.14em;color:rgba(115,115,115,0.9);padding-top:16px;margin-bottom:12px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+  .card-header{padding:16px 16px 4px;}
+  .card-title{font-size:18px;font-weight:600;line-height:1.3;letter-spacing:-0.01em;}
+  .card-desc{font-size:13px;color:var(--muted-fg);margin-top:2px;}
+  .card-content{padding:8px 16px 16px;}
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+  @media(max-width:1200px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:768px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;min-height:110px;display:flex;flex-direction:column;justify-content:space-between;}
+  .kpi-value{font-size:24px;font-weight:600;line-height:1;letter-spacing:-0.01em;}
+  .kpi-label{font-size:12px;font-weight:500;color:rgba(10,10,10,0.75);margin-top:6px;}
+  .kpi-sub{font-size:12px;font-weight:500;color:rgba(115,115,115,0.5);margin-top:4px;}
+  .kpi-bar-bg{height:6px;background:var(--muted);border-radius:3px;overflow:hidden;margin-top:8px;}
+  .kpi-bar-fill{height:100%;border-radius:3px;transition:width 0.3s;}
+  .waterfall-row{display:grid;grid-template-columns:200px 1fr 100px 100px 80px;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid rgba(0,0,0,0.04);font-size:13px;}
+  .waterfall-row:last-child{border-bottom:none;}
+  .waterfall-row.header{font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted-fg);background:var(--muted);border-bottom:1px solid var(--border);}
+  .waterfall-bar-bg{height:20px;background:var(--muted);border-radius:4px;overflow:hidden;position:relative;}
+  .waterfall-bar-shown{position:absolute;height:100%;border-radius:4px;opacity:0.25;}
+  .waterfall-bar-collected{position:absolute;height:100%;border-radius:4px;}
+  .num{text-align:right;font-variant-numeric:tabular-nums;}
+  .loc-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .loc-table th{text-align:left;padding:8px 14px;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted-fg);border-bottom:1px solid var(--border);background:var(--muted);position:sticky;top:0;z-index:1;cursor:pointer;user-select:none;}
+  .loc-table th:hover{color:var(--fg);}
+  .loc-table td{padding:7px 14px;border-bottom:1px solid rgba(0,0,0,0.04);font-variant-numeric:tabular-nums;}
+  .loc-table tr:hover td{background:rgba(0,0,0,0.015);}
+  .tab-content{display:none;}
+  .tab-content.active{display:block;}
+  .footer{text-align:center;font-size:11px;color:var(--muted-fg);padding:24px 0 16px;border-top:1px solid var(--border);margin-top:24px;}
+  .btn-apply{font-size:12px;font-weight:600;padding:6px 14px;border:none;border-radius:6px;background:var(--dc);color:#fff;cursor:pointer;}
+  .btn-apply:hover{opacity:0.9;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="header-left">
+      <div class="badge">CP</div>
+      <div>
+        <h1>ClearPay Collection Metrics</h1>
+        <div class="header-meta"><!-- PARTNER_NAME --></div>
+      </div>
+    </div>
+    <div class="tabs">
+      <span class="tab active" onclick="switchTab('overview')" data-tab="overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>
+        Overview
+      </span>
+      <span class="tab" onclick="switchTab('locations')" data-tab="locations">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+        Locations
+      </span>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+  <div class="filter-bar">
+    <span class="filter-label">Group</span>
+    <span class="filter-value"><!-- PARTNER_NAME --></span>
+    <div class="filter-sep"></div>
+    <span class="filter-label">Date Range</span>
+    <span class="filter-value"><!-- DATE_RANGE --></span>
+  </div>
+
+  <div class="tab-content active" id="tab-overview">
+    <div class="section-title">Collection Summary</div>
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <div style="margin-top:24px;" class="section-title">Waterfall Attribution</div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Shown vs Collected by Component</div>
+      </div>
+      <div class="card-content" id="waterfallCard"></div>
+    </div>
+
+    <div style="margin-top:24px;" class="section-title">Additional and Unknown POS Charges</div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Unattributed POS Collections</div>
+        <div class="card-desc">Reasons for POS collections that are unattributed include looking at the card for benefits without inputting it into Solv, running eligibility in another system and collecting it in Solv, or collecting a past balance</div>
+      </div>
+      <div class="card-content" id="addlUnknownCard"></div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-locations">
+    <div class="section-title">Location Performance</div>
+    <div class="card">
+      <div class="card-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+        <div>
+          <div class="card-title">Collection Metrics by Location</div>
+          <div class="card-desc">All locations, sortable by column. Data through <!-- END_DATE -->.</div>
+        </div>
+        <button class="btn-apply" style="margin-top:4px;white-space:nowrap;flex-shrink:0;" onclick="downloadLocCSV()">&#8595; Download CSV</button>
+      </div>
+      <div class="card-content" id="locContent"></div>
+    </div>
+  </div>
+
+  <div class="footer">ClearPay Collection Metrics · <!-- PARTNER_NAME --> · <!-- DATE_RANGE --> · Generated <!-- GENERATED_DATE --></div>
+</div>
+
+<script>
+// Daily (14): 0=dt 1=bkg 2=with_est 3=pos 4=cs 5=cc 6=ds 7=dc 8=ss 9=sc 10=os 11=oc 12=spill 13=noest_ins
+// Locations (15): 0=state 1=clinic 2=bkg 3=with_est 4=pos 5=cs 6=cc 7=ds 8=dc 9=ss 10=sc 11=os 12=oc 13=spill 14=noest_ins
+const RAW_DAILY = __DAILY_JSON__;
+const RAW_LOCATIONS = __LOCATIONS_JSON__;
+
+const fmtK = n => n >= 1000000 ? '$' + (n/1000000).toFixed(1) + 'M'
+                : n >= 1000    ? '$' + (n/1000).toFixed(0) + 'K'
+                :                '$' + Math.round(n);
+const pct = (a, b) => b > 0 ? ((a / b) * 100).toFixed(1) + '%' : '-';
+const COLORS = {copay:'#7c3aed', dc:'#2563eb', sp:'#d97706', unclass:'#6b7280', fg:'#0a0a0a'};
+
+function totals() {
+  const T = {bookings:0, with_est:0, pos:0, cs:0, cc:0, ds:0, dc:0, ss:0, sc:0, os:0, oc:0, spill:0, noest:0};
+  for (const r of RAW_DAILY) {
+    T.bookings += r[1]; T.with_est += r[2]; T.pos += r[3];
+    T.cs += r[4]; T.cc += r[5]; T.ds += r[6]; T.dc += r[7];
+    T.ss += r[8]; T.sc += r[9]; T.os += r[10]; T.oc += r[11];
+    T.spill += r[12]; T.noest += r[13];
+  }
+  return T;
+}
+
+function locTotals() {
+  const T = {bookings:0, pos:0, cs:0, cc:0, ds:0, dc:0, ss:0, sc:0, os:0, oc:0, spill:0, noest:0};
+  for (const r of RAW_LOCATIONS) {
+    T.bookings += r[2]; T.pos += r[4];
+    T.cs += r[5]; T.cc += r[6]; T.ds += r[7]; T.dc += r[8];
+    T.ss += r[9]; T.sc += r[10]; T.os += r[11]; T.oc += r[12];
+    T.spill += r[13]; T.noest += r[14];
+  }
+  return T;
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + name));
+  if (name === 'locations') renderLocations();
+}
+
+function renderOverview() {
+  const T = totals();
+  const avgPerBkg = T.pos / T.bookings;
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi" style="border-top:4px solid ${COLORS.fg}">
+      <div>
+        <div class="kpi-value">${fmtK(T.pos)}</div>
+        <div class="kpi-label">Total POS Collected</div>
+        <div class="kpi-sub">$${avgPerBkg.toFixed(0)} avg/booking</div>
+      </div>
+    </div>
+    <div class="kpi" style="border-top:4px solid ${COLORS.copay}">
+      <div>
+        <div class="kpi-value">${fmtK(T.cc)}</div>
+        <div class="kpi-label">Copay Collected</div>
+        <div class="kpi-sub">${pct(T.cc, T.cs)} of shown</div>
+      </div>
+      <div class="kpi-bar-bg"><div class="kpi-bar-fill" style="width:${Math.min(100,T.cc/T.cs*100).toFixed(1)}%;background:${COLORS.copay}"></div></div>
+    </div>
+    <div class="kpi" style="border-top:4px solid ${COLORS.dc}">
+      <div>
+        <div class="kpi-value">${fmtK(T.dc)}</div>
+        <div class="kpi-label">Deductible + Coinsurance Collected</div>
+        <div class="kpi-sub">${pct(T.dc, T.ds)} of shown</div>
+      </div>
+      <div class="kpi-bar-bg"><div class="kpi-bar-fill" style="width:${Math.min(100,T.dc/T.ds*100).toFixed(1)}%;background:${COLORS.dc}"></div></div>
+    </div>
+    <div class="kpi" style="border-top:4px solid ${COLORS.sp}">
+      <div>
+        <div class="kpi-value">${fmtK(T.sc)}</div>
+        <div class="kpi-label">Self-Pay Collected</div>
+        <div class="kpi-sub">${pct(T.sc, T.ss)} of shown</div>
+      </div>
+      <div class="kpi-bar-bg"><div class="kpi-bar-fill" style="width:${Math.min(100,T.sc/T.ss*100).toFixed(1)}%;background:${COLORS.sp}"></div></div>
+    </div>
+  `;
+
+  const maxShown = Math.max(T.cs, T.ds, T.ss, T.os);
+
+  const row = (label, color, shown, collected, rate) => `
+    <div class="waterfall-row">
+      <span style="font-weight:500;color:${color}">${label}</span>
+      <div class="waterfall-bar-bg">
+        <div class="waterfall-bar-shown" style="width:${(shown/maxShown*100).toFixed(2)}%;background:${color}"></div>
+        <div class="waterfall-bar-collected" style="width:${(collected/maxShown*100).toFixed(2)}%;background:${color}"></div>
+      </div>
+      <span class="num">${fmtK(shown)}</span>
+      <span class="num">${fmtK(collected)}</span>
+      <span class="num">${rate}</span>
+    </div>`;
+
+  document.getElementById('waterfallCard').innerHTML = `
+    <div class="waterfall-row header"><span>Component</span><span>Shown vs Collected</span><span class="num">Shown</span><span class="num">Collected</span><span class="num">Rate</span></div>
+    ${row('Copay', COLORS.copay, T.cs, T.cc, pct(T.cc, T.cs))}
+    ${row('Deductible + Coinsurance', COLORS.dc, T.ds, T.dc, pct(T.dc, T.ds))}
+    ${row('Self-Pay', COLORS.sp, T.ss, T.sc, pct(T.sc, T.ss))}
+    ${row('Other / Mixed', COLORS.unclass, T.os, T.oc, pct(T.oc, T.os))}
+    <div class="waterfall-row" style="font-weight:600;border-top:2px solid var(--border);">
+      <span>Total POS</span><div></div>
+      <span class="num"></span>
+      <span class="num">${fmtK(T.pos)}</span>
+      <span class="num"></span>
+    </div>
+  `;
+
+  document.getElementById('addlUnknownCard').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:4px;">
+      <div class="kpi" style="border-top:4px solid ${COLORS.unclass}">
+        <div>
+          <div class="kpi-value">${fmtK(T.spill)}</div>
+          <div class="kpi-label">Overcollections on ClearPay estimates</div>
+          <div class="kpi-sub">${pct(T.spill, T.pos)} of total POS</div>
+        </div>
+      </div>
+      <div class="kpi" style="border-top:4px solid ${COLORS.unclass}">
+        <div>
+          <div class="kpi-value">${fmtK(T.noest)}</div>
+          <div class="kpi-label">Revenue collected where no RTE is run (insured patients)</div>
+          <div class="kpi-sub">${pct(T.noest, T.pos)} of total POS</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+let _locSortCol = 4, _locSortAsc = false;
+
+function renderLocations() {
+  const cols = [
+    {key:1,        label:'Location',         num:false},
+    {key:0,        label:'State',            num:false},
+    {key:6,        label:'Copay Coll',       num:true},
+    {key:5,        label:'Copay Shown',      num:true},
+    {key:'pctC',   label:'% Copay',          num:true},
+    {key:8,        label:'Ded+Coins Coll',   num:true},
+    {key:7,        label:'Ded+Coins Shown',  num:true},
+    {key:'pctDC',  label:'% Ded+Coins',      num:true},
+    {key:10,       label:'Self-Pay Coll',    num:true},
+    {key:9,        label:'Self-Pay Shown',   num:true},
+    {key:'pctSP',  label:'% Self-Pay',       num:true},
+    {key:13,       label:'Addl Patient Pmts',num:true},
+    {key:14,       label:'No RTE (insured)', num:true},
+    {key:4,        label:'Total POS',        num:true},
+  ];
+  const val = (r, key) => {
+    if (key === 'pctC')  return r[5] > 0 ? r[6]/r[5] : 0;
+    if (key === 'pctDC') return r[7] > 0 ? r[8]/r[7] : 0;
+    if (key === 'pctSP') return r[9] > 0 ? r[10]/r[9] : 0;
+    return r[key];
+  };
+  const sorted = [...RAW_LOCATIONS].sort((a, b) => {
+    const va = val(a, _locSortCol), vb = val(b, _locSortCol);
+    if (typeof va === 'string') return _locSortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return _locSortAsc ? va - vb : vb - va;
+  });
+  const arrow = key => key === _locSortCol ? (_locSortAsc ? ' \u25B2' : ' \u25BC') : '';
+  const header = cols.map((c,i) => `<th class="${c.num?'num':''}" onclick="sortLoc(${i})">${c.label}${arrow(c.key)}</th>`).join('');
+  const rows = sorted.map(r => {
+    const cells = cols.map(c => {
+      const v = val(r, c.key);
+      if (c.key === 'pctC' || c.key === 'pctDC' || c.key === 'pctSP') return `<td class="num">${(v*100).toFixed(1)}%</td>`;
+      if (c.num) return `<td class="num">${fmtK(v)}</td>`;
+      return `<td>${v}</td>`;
+    }).join('');
+    return `<tr>${cells}</tr>`;
+  }).join('');
+
+  const T = locTotals();
+  const totalsRow = `
+    <td style="font-weight:600">Total</td>
+    <td></td>
+    <td class="num" style="font-weight:600">${fmtK(T.cc)}</td>
+    <td class="num" style="font-weight:600">${fmtK(T.cs)}</td>
+    <td class="num" style="font-weight:600">${(T.cs>0?T.cc/T.cs*100:0).toFixed(1)}%</td>
+    <td class="num" style="font-weight:600">${fmtK(T.dc)}</td>
+    <td class="num" style="font-weight:600">${fmtK(T.ds)}</td>
+    <td class="num" style="font-weight:600">${(T.ds>0?T.dc/T.ds*100:0).toFixed(1)}%</td>
+    <td class="num" style="font-weight:600">${fmtK(T.sc)}</td>
+    <td class="num" style="font-weight:600">${fmtK(T.ss)}</td>
+    <td class="num" style="font-weight:600">${(T.ss>0?T.sc/T.ss*100:0).toFixed(1)}%</td>
+    <td class="num" style="font-weight:600">${fmtK(T.spill)}</td>
+    <td class="num" style="font-weight:600">${fmtK(T.noest)}</td>
+    <td class="num" style="font-weight:600">${fmtK(T.pos)}</td>
+  `;
+
+  document.getElementById('locContent').innerHTML = `
+    <div style="overflow-x:auto"><table class="loc-table">
+      <thead><tr>${header}</tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr style="border-top:2px solid var(--border);background:var(--muted)">${totalsRow}</tr></tfoot>
+    </table></div>`;
+}
+
+function sortLoc(idx) {
+  const cols = [1,0,6,5,'pctC',8,7,'pctDC',10,9,'pctSP',13,14,4];
+  const key = cols[idx];
+  if (_locSortCol === key) _locSortAsc = !_locSortAsc;
+  else { _locSortCol = key; _locSortAsc = (key === 1 || key === 0); }
+  renderLocations();
+}
+
+function downloadLocCSV() {
+  const headers = ['Location','State','Copay Collected','Copay Shown','% Copay',
+                   'Ded+Coins Collected','Ded+Coins Shown','% Ded+Coins',
+                   'Self-Pay Collected','Self-Pay Shown','% Self-Pay',
+                   'Other Collected','Other Shown',
+                   'Addl Patient Pmts','No RTE (insured)','Total POS'];
+  const rows = RAW_LOCATIONS.map(r => {
+    const pC  = r[5] > 0 ? (r[6]/r[5]*100).toFixed(1)+'%' : '0%';
+    const pDC = r[7] > 0 ? (r[8]/r[7]*100).toFixed(1)+'%' : '0%';
+    const pSP = r[9] > 0 ? (r[10]/r[9]*100).toFixed(1)+'%' : '0%';
+    return [r[1], r[0], r[6], r[5], pC, r[8], r[7], pDC, r[10], r[9], pSP, r[12], r[11], r[13], r[14], r[4]];
+  });
+  const csv = [headers, ...rows].map(row => row.map(v => JSON.stringify(v ?? '')).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = '<!-- CSV_FILENAME -->';
+  a.click();
+}
+
+renderOverview();
+</script>
+
+</body></html>

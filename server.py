@@ -21,7 +21,7 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/":
             self.send_response(302)
-            self.send_header("Location", "/ines/nextcare-clearpay-observatory.html")
+            self.send_header("Location", "/ines/ClearPay_Collection_Metrics_NextCare_Discharged.html")
             self.end_headers()
         else:
             super().do_GET()

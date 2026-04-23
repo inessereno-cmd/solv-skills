@@ -1,20 +1,22 @@
 """
-NextCare ClearPay Observatory — daily data refresh.
-Uses the dbt Cloud MCP API (same connection Claude Code uses).
-No SSH tunnel or local Redshift credentials needed.
+ClearPay Collection Metrics Dashboard — daily data refresh.
+Uses the dbt Cloud MCP API. Generates ines/ClearPay_Collection_Metrics_NextCare_Discharged.html
 """
 
 import json
+import os
 import re
 import sys
 from datetime import date, timedelta
 from pathlib import Path
 
-import os
 import urllib.request
-import urllib.error
 
 ROOT = Path(__file__).parent.parent
+PARTNER_NAME = "NextCare"
+GROUP_ID = 13
+TEMPLATE = ROOT / "ines" / "clearpay-collections-template.html"
+OUTPUT = ROOT / "ines" / "ClearPay_Collection_Metrics_NextCare_Discharged.html"
 
 def load_env():
     env_file = ROOT / ".env"
@@ -49,211 +51,138 @@ def execute_sql(sql, request_id=1):
         "params": {"name": "execute_sql", "arguments": {"sql": sql}},
         "id": request_id,
     }).encode()
-
     req = urllib.request.Request(DBT_URL, data=payload, headers=DBT_HEADERS, method="POST")
     with urllib.request.urlopen(req, timeout=120) as resp:
         raw = resp.read().decode()
-
-    # Parse SSE: find "data: {...}" line
     for line in raw.splitlines():
         if line.startswith("data:"):
             envelope = json.loads(line[5:].strip())
             if "error" in envelope:
                 raise RuntimeError(f"dbt error: {envelope['error']}")
-            result_text = envelope["result"]["content"][0]["text"]
-            result = json.loads(result_text)
-            # Convert [{col: val}, ...] to [[val, val, ...], ...]
+            result = json.loads(envelope["result"]["content"][0]["text"])
             if not result.get("data"):
                 return []
             fields = [f["name"] for f in result["schema"]["fields"]]
             return [[row.get(f) for f in fields] for row in result["data"]]
+    raise RuntimeError(f"No data in response: {raw[:200]}")
 
-    raise RuntimeError(f"No data line in response: {raw[:200]}")
+BASE_CTE = """
+with base as (
+    select
+        b.id,
+        date(b.local_appointment_date)                                           as appt_date,
+        l.state,
+        l.display_name_secondary                                                 as clinic_name,
+        cp.solv_estimate_in_network                                              as estimate_total,
+        cp.estimate_type,
+        case
+            when cp.sum_paid_amount_pos > 0
+                then greatest(cp.sum_paid_amount_pos - coalesce(cp.sum_refunds, 0), 0)
+            else null
+        end                                                                      as actual_billed,
+        case
+            when cp.estimate_type = 'self_pay'
+              or b.insurer_type in ('self-pay', 'selfPay')
+                then true else false
+        end                                                                      as is_self_pay,
+        case
+            when cp.estimate_failed = true or cp.solv_estimate_in_network is null then 'failed_no_estimate'
+            when cp.solv_estimate_in_network = 0                                  then 'zero_cost'
+            when cp.estimate_type in ('copay','deductible','coinsurance','self_pay','zero_cost')
+                                                                                   then cp.estimate_type
+            else 'other'
+        end                                                                      as bucket
+    from {{{{ ref('dim_bookings') }}}} b
+    inner join {{{{ ref('dim_locations') }}}} l on b.location_id = l.id
+    left join {{{{ ref('fact_bookings_clearpay_payments') }}}} cp on b.id = cp.id
+    where b.group_id = {group_id}
+      and b.group_id not in (21, 12195)
+      and b.status = 'discharged'
+      and date(b.local_appointment_date) between '{start_date}' and '{end_date}'
+)
+"""
 
-def inject(html_path, var_name, rows):
-    content = html_path.read_text(encoding="utf-8")
-    pattern = rf"const {var_name} = \[[\s\S]*?\];"
-    replacement = f"const {var_name} = {json.dumps(rows)};"
-    if not re.search(pattern, content):
-        print(f"  WARNING: {var_name} not found in HTML — skipping", file=sys.stderr)
-        return
-    content = re.sub(pattern, replacement, content)
-    html_path.write_text(content, encoding="utf-8")
-    print(f"  {var_name}: {len(rows)} rows")
+SELECT_LIST = """
+    count(*)                                                                                                     as bookings_total,
+    sum(case when estimate_total is not null then 1 else 0 end)                                                  as bookings_with_estimate,
+    round(sum(coalesce(actual_billed, 0)), 2)                                                                    as total_pos_collected,
+    round(sum(case when bucket = 'copay'                          then estimate_total else 0 end), 2)            as copay_shown,
+    round(sum(case when bucket = 'copay' and estimate_total is not null
+             then least(coalesce(actual_billed, 0), estimate_total) else 0 end), 2)                              as copay_collected,
+    round(sum(case when bucket in ('deductible','coinsurance')    then estimate_total else 0 end), 2)            as ded_coins_shown,
+    round(sum(case when bucket in ('deductible','coinsurance') and estimate_total is not null
+             then least(coalesce(actual_billed, 0), estimate_total) else 0 end), 2)                              as ded_coins_collected,
+    round(sum(case when bucket = 'self_pay'                       then estimate_total else 0 end), 2)            as self_pay_shown,
+    round(sum(case when actual_billed is not null and is_self_pay = true
+             then actual_billed else 0 end), 2)                                                                  as self_pay_collected_raw,
+    round(sum(case when bucket = 'other'                          then estimate_total else 0 end), 2)            as other_shown,
+    round(sum(case when bucket = 'other' and estimate_total is not null
+             then least(coalesce(actual_billed, 0), estimate_total) else 0 end), 2)                              as other_collected,
+    round(sum(case when actual_billed is not null and estimate_total is not null
+              and bucket in ('copay','deductible','coinsurance')
+             then greatest(actual_billed - estimate_total, 0) else 0 end), 2)                                    as overcollection_spillover,
+    round(sum(case when actual_billed is not null and estimate_total is null
+              and is_self_pay = false
+             then actual_billed else 0 end), 2)                                                                  as no_estimate_insured_collected
+from base
+"""
 
-QUERIES = {
-    "RAW_DAILY": """
-        WITH daily_bookings AS (
-          SELECT calendar_date, SUM(total_bookings) as total_bookings
-          FROM {{ ref('fact_location_daily') }}
-          WHERE group_id = 13
-            AND calendar_date BETWEEN '{START}' AND '{END}'
-          GROUP BY calendar_date
-        ),
-        daily_estimates AS (
-          SELECT
-            CAST(cp.booking_created_date AS DATE) as dt,
-            SUM(CASE WHEN cp.has_estimate THEN 1 ELSE 0 END) as estimate_generated,
-            SUM(CASE WHEN cp.has_estimate AND cp.solv_estimate_in_network > 0 THEN 1 ELSE 0 END) as non_zero_estimate,
-            SUM(CASE WHEN cp.is_eligible_estimate_for_charge THEN 1 ELSE 0 END) as estimate_charged,
-            SUM(CASE WHEN cp.is_charged_exact_estimate THEN 1 ELSE 0 END) as exact_match,
-            SUM(CASE WHEN cp.is_copay_line_item THEN 1 ELSE 0 END) as copay_total,
-            SUM(CASE WHEN cp.is_copay_line_item AND cp.is_charged_exact_estimate THEN 1 ELSE 0 END) as copay_matched,
-            SUM(CASE WHEN cp.is_deductible_line_item THEN 1 ELSE 0 END) as deductible_total,
-            SUM(CASE WHEN cp.is_deductible_line_item AND cp.is_charged_exact_estimate THEN 1 ELSE 0 END) as deductible_matched,
-            SUM(CASE WHEN cp.is_coinsurance_line_item THEN 1 ELSE 0 END) as coinsurance_total,
-            SUM(CASE WHEN cp.is_coinsurance_line_item AND cp.is_charged_exact_estimate THEN 1 ELSE 0 END) as coinsurance_matched,
-            SUM(CASE WHEN cp.is_self_pay_line_item THEN 1 ELSE 0 END) as self_pay_total,
-            SUM(CASE WHEN cp.is_self_pay_line_item AND cp.is_charged_exact_estimate THEN 1 ELSE 0 END) as self_pay_matched,
-            SUM(CASE WHEN cp.estimate_is_zero_cost THEN 1 ELSE 0 END) as zero_cost_total,
-            SUM(CASE WHEN cp.estimate_is_zero_cost AND cp.is_charged_exact_estimate THEN 1 ELSE 0 END) as zero_cost_matched,
-            SUM(CASE WHEN cp.has_estimate
-                      AND NOT COALESCE(cp.is_copay_line_item, FALSE)
-                      AND NOT COALESCE(cp.is_deductible_line_item, FALSE)
-                      AND NOT COALESCE(cp.is_coinsurance_line_item, FALSE)
-                      AND NOT COALESCE(cp.is_self_pay_line_item, FALSE)
-                      AND NOT COALESCE(cp.estimate_is_zero_cost, FALSE)
-                 THEN 1 ELSE 0 END) as other_total,
-            SUM(CASE WHEN cp.is_copay_line_item AND cp.is_eligible_estimate_for_charge THEN 1 ELSE 0 END) as copay_charged,
-            SUM(CASE WHEN cp.is_deductible_line_item AND cp.is_eligible_estimate_for_charge THEN 1 ELSE 0 END) as deductible_charged,
-            SUM(CASE WHEN cp.is_coinsurance_line_item AND cp.is_eligible_estimate_for_charge THEN 1 ELSE 0 END) as coinsurance_charged,
-            SUM(CASE WHEN cp.is_self_pay_line_item AND cp.is_eligible_estimate_for_charge THEN 1 ELSE 0 END) as self_pay_charged
-          FROM {{ ref('fact_bookings_clearpay_payments') }} cp
-          JOIN {{ ref('dim_locations') }} l ON cp.location_id = l.id
-          WHERE l.group_id = 13
-            AND CAST(cp.booking_created_date AS DATE) BETWEEN '{START}' AND '{END}'
-          GROUP BY CAST(cp.booking_created_date AS DATE)
-        )
-        SELECT
-          db.calendar_date, db.total_bookings,
-          COALESCE(de.estimate_generated, 0), COALESCE(de.non_zero_estimate, 0),
-          COALESCE(de.estimate_charged, 0), COALESCE(de.exact_match, 0),
-          COALESCE(de.copay_total, 0), COALESCE(de.copay_matched, 0),
-          COALESCE(de.deductible_total, 0), COALESCE(de.deductible_matched, 0),
-          COALESCE(de.coinsurance_total, 0), COALESCE(de.coinsurance_matched, 0),
-          COALESCE(de.self_pay_total, 0), COALESCE(de.self_pay_matched, 0),
-          COALESCE(de.zero_cost_total, 0), COALESCE(de.zero_cost_matched, 0),
-          COALESCE(de.other_total, 0),
-          COALESCE(de.copay_charged, 0), COALESCE(de.deductible_charged, 0),
-          COALESCE(de.coinsurance_charged, 0), COALESCE(de.self_pay_charged, 0)
-        FROM daily_bookings db
-        LEFT JOIN daily_estimates de ON db.calendar_date = de.dt
-        ORDER BY db.calendar_date
-    """,
+def build_queries(group_id, start_date, end_date):
+    cte = BASE_CTE.format(group_id=group_id, start_date=start_date, end_date=end_date)
+    totals_q  = cte + "select" + SELECT_LIST
+    daily_q   = cte + "select appt_date," + SELECT_LIST + "group by appt_date order by appt_date"
+    locs_q    = cte + "select state, clinic_name," + SELECT_LIST + "group by state, clinic_name order by state, clinic_name"
+    return totals_q, daily_q, locs_q
 
-    "RAW_LOCATIONS": """
-        SELECT
-          CAST(cp.booking_created_date AS DATE) as dt,
-          l.state, l.name as clinic,
-          COUNT(*) as bookings,
-          SUM(CASE WHEN cp.has_estimate THEN 1 ELSE 0 END) as with_est,
-          SUM(CASE WHEN cp.is_charged_exact_estimate THEN 1 ELSE 0 END) as exact,
-          ROUND(SUM(COALESCE(cp.sum_paid_amount_pos, 0))::numeric, 2) as collected,
-          ROUND(SUM(CASE WHEN cp.has_estimate AND cp.solv_estimate_in_network > 0
-                    THEN GREATEST(cp.solv_estimate_in_network - COALESCE(cp.sum_paid_amount_pos, 0), 0)
-                    ELSE 0 END)::numeric, 2) as missed
-        FROM {{ ref('fact_bookings_clearpay_payments') }} cp
-        JOIN {{ ref('dim_locations') }} l ON cp.location_id = l.id
-        WHERE l.group_id = 13
-          AND CAST(cp.booking_created_date AS DATE) BETWEEN '{START}' AND '{END}'
-        GROUP BY CAST(cp.booking_created_date AS DATE), l.state, l.name
-        ORDER BY dt, l.state, l.name
-    """,
+def fmt_date(d):
+    """2026-03-24 → Mar 24, 2026"""
+    from datetime import datetime
+    return datetime.strptime(d, "%Y-%m-%d").strftime("%b %-d, %Y")
 
-    "RAW_OVERRIDES": """
-        SELECT
-          CAST(cp.booking_created_date AS DATE) as dt,
-          CASE
-            WHEN LOWER(ch.reason_for_manual_charge) LIKE '%incorrect%'
-              OR LOWER(ch.reason_for_manual_charge) LIKE '%clearpayestimateincorrect%' THEN 'Estimate Incorrect'
-            WHEN LOWER(ch.reason_for_manual_charge) LIKE '%partial%' THEN 'Partial Payment'
-            WHEN LOWER(ch.reason_for_manual_charge) LIKE '%previous%'
-              OR LOWER(ch.reason_for_manual_charge) LIKE '%prior%' THEN 'Previous Balance'
-            WHEN LOWER(ch.reason_for_manual_charge) LIKE '%copay%' THEN 'Copay Override'
-            WHEN LOWER(ch.reason_for_manual_charge) LIKE '%mdp%' THEN 'MDP Sign Up'
-            WHEN LOWER(ch.reason_for_manual_charge) LIKE '%self%pay%' THEN 'Self Pay'
-            WHEN ch.reason_for_manual_charge IS NULL
-              OR TRIM(ch.reason_for_manual_charge) = '' THEN 'No reason provided'
-            ELSE 'Other'
-          END as reason,
-          COUNT(DISTINCT cp.id) as cnt,
-          ROUND(AVG(cp.solv_estimate_in_network)::numeric, 2) as avg_est,
-          ROUND(AVG(cp.sum_paid_amount_pos)::numeric, 2) as avg_chg,
-          ROUND(AVG(COALESCE(cp.sum_paid_amount_pos, 0) - cp.solv_estimate_in_network)::numeric, 2) as avg_delta
-        FROM {{ ref('fact_bookings_clearpay_payments') }} cp
-        JOIN {{ ref('dim_locations') }} l ON cp.location_id = l.id
-        JOIN postgres.invoices inv ON inv.booking_id = cp.id AND inv.invoice_type = 'pos'
-        JOIN postgres.charges ch ON ch.invoice_id = inv.id AND ch.status = 'succeeded'
-        WHERE l.group_id = 13
-          AND CAST(cp.booking_created_date AS DATE) BETWEEN '{START}' AND '{END}'
-          AND cp.has_estimate = TRUE
-          AND NOT cp.is_charged_exact_estimate
-        GROUP BY 1, 2
-        ORDER BY dt, cnt DESC
-    """,
+def build_html(totals_row, daily_rows, loc_rows, start_date, end_date):
+    template = TEMPLATE.read_text(encoding="utf-8")
 
-    "RAW_INSPECTOR": """
-        SELECT
-          CAST(cp.id AS VARCHAR) as booking_id,
-          CAST(CAST(cp.booking_created_date AS DATE) AS VARCHAR) as dt,
-          l.name as clinic,
-          '' as patient_name,
-          CASE WHEN ib.most_recent_insurance_benefits_id IS NOT NULL THEN '1' ELSE '0' END as ins_card,
-          CASE WHEN rte.is_real_time_eligibility_success THEN '1' ELSE '0' END as rte_success,
-          CASE WHEN ib.primary_insurance_latest_success_copay_in_network IS NOT NULL
-               THEN CAST(ib.primary_insurance_latest_success_copay_in_network AS VARCHAR)
-               ELSE '' END as copay_rte,
-          COALESCE(CAST(cp.estimate_copay_amount AS VARCHAR), '') as copay_comp,
-          COALESCE(CAST(cp.estimate_coinsurance_amount AS VARCHAR), '') as coins_comp,
-          COALESCE(CAST(cp.estimate_deductible_amount AS VARCHAR), '') as ded_comp,
-          COALESCE(CAST(cp.solv_estimate_in_network AS VARCHAR), '0') as total_est,
-          COALESCE(CAST(cp.sum_paid_amount_pos AS VARCHAR), '0') as pos_charged,
-          CASE WHEN cp.is_self_pay_line_item THEN '1' ELSE '0' END as is_self_pay,
-          COALESCE(ib.primary_insurance_returned_payer_name, '') as payer_name
-        FROM {{ ref('fact_bookings_clearpay_payments') }} cp
-        JOIN {{ ref('dim_locations') }} l ON cp.location_id = l.id
-        LEFT JOIN {{ ref('fact_bookings_insurance_benefits_latest') }} ib ON cp.id = ib.id
-        LEFT JOIN {{ ref('int_bookings_rte_success_flag') }} rte ON cp.id = rte.id
-        WHERE l.group_id = 13
-          AND CAST(cp.booking_created_date AS DATE) BETWEEN '{START}' AND '{END}'
-        ORDER BY cp.booking_created_date, l.name, cp.id
-    """,
+    # Daily JSON: [dt, bookings_total, bookings_with_estimate, total_pos,
+    #              copay_shown, copay_collected, dc_shown, dc_collected,
+    #              sp_shown, sp_collected_raw, other_shown, other_collected,
+    #              spillover, no_estimate_insured]
+    daily_json = []
+    for row in daily_rows:
+        daily_json.append([str(row[0])] + [float(v) if v is not None else 0 for v in row[1:]])
 
-    "RAW_COLLECTIONS": """
-        SELECT
-          CAST(fld.calendar_date AS VARCHAR) as dt,
-          ROUND(SUM(fld.solv_pay_total_paid)::numeric, 2) as total_paid,
-          ROUND((SUM(fld.solv_pay_total_paid) / NULLIF(SUM(fld.total_bookings), 0))::numeric, 1) as avg_per_booking,
-          ROUND(SUM(fld.solv_pay_total_paid_facesheet)::numeric, 2) as paid_facesheet,
-          ROUND(SUM(fld.solv_pay_total_paid_autocollect)::numeric, 2) as paid_autocollect,
-          ROUND(SUM(fld.solv_pay_total_paid_terminal)::numeric, 2) as paid_terminal,
-          ROUND(SUM(fld.solv_pay_total_paid_sms)::numeric, 2) as paid_sms,
-          0.0 as paid_other,
-          SUM(fld.discharged_bookings_pos_invoices_created) as pos_invoices,
-          SUM(fld.total_bookings) as total_bookings
-        FROM {{ ref('fact_location_daily') }} fld
-        WHERE fld.group_id = 13
-          AND fld.calendar_date BETWEEN '{START}' AND '{END}'
-        GROUP BY fld.calendar_date
-        ORDER BY fld.calendar_date
-    """,
-}
+    # Locations JSON: [state, clinic_name, bookings_total, ...]
+    locs_json = []
+    for row in loc_rows:
+        locs_json.append([str(row[0]), str(row[1])] + [float(v) if v is not None else 0 for v in row[2:]])
+
+    html = template
+    html = html.replace("__DAILY_JSON__", json.dumps(daily_json))
+    html = html.replace("__LOCATIONS_JSON__", json.dumps(locs_json))
+    html = html.replace("<!-- PARTNER_NAME -->", PARTNER_NAME)
+    html = html.replace("<!-- DATE_RANGE -->", f"{fmt_date(start_date)} – {fmt_date(end_date)}")
+    html = html.replace("<!-- END_DATE -->", end_date)
+    html = html.replace("<!-- CSV_FILENAME -->",
+                        f"clearpay-nextcare-{start_date}-to-{end_date}.csv")
+    html = html.replace("<!-- GENERATED_DATE -->", str(date.today()))
+    return html
 
 def main():
-    start_date, end_date = get_date_range()
-    print(f"Refreshing observatory: {start_date} → {end_date}")
+    start_date, end_date = get_date_range(days=30)
+    print(f"Refreshing ClearPay Collection Metrics: {start_date} → {end_date}")
 
-    html_path = ROOT / "ines" / "nextcare-clearpay-observatory.html"
+    totals_q, daily_q, locs_q = build_queries(GROUP_ID, start_date, end_date)
 
-    for i, (var_name, sql) in enumerate(QUERIES.items(), start=1):
-        print(f"  Querying {var_name}...", end=" ", flush=True)
-        query = sql.replace("{START}", start_date).replace("{END}", end_date)
-        try:
-            rows = execute_sql(query, request_id=i)
-            inject(html_path, var_name, rows)
-        except Exception as e:
-            print(f"ERROR: {e}", file=sys.stderr)
+    print("  Running totals query...")
+    totals = execute_sql(totals_q, request_id=1)
+    print(f"  Running daily query...")
+    daily  = execute_sql(daily_q,  request_id=2)
+    print(f"  Running locations query...")
+    locs   = execute_sql(locs_q,   request_id=3)
 
+    print(f"  Building HTML ({len(daily)} days, {len(locs)} locations)...")
+    html = build_html(totals[0] if totals else [], daily, locs, start_date, end_date)
+    OUTPUT.write_text(html, encoding="utf-8")
+    print(f"  Saved → {OUTPUT.name}")
     print(f"Done. Data through {end_date}.")
 
 if __name__ == "__main__":

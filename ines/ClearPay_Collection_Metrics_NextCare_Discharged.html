@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClearPay Collection Metrics - NextCare (Discharged)</title>
+<style>
+  :root {
+    --bg:#fff;--fg:#0a0a0a;--card:#fff;--muted:#f5f5f5;--muted-fg:#737373;--border:#e5e5e5;--radius:0.5rem;
+    --copay:#7c3aed;--dc:#2563eb;--self-pay:#d97706;--unclass:#6b7280;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--fg);line-height:1.5;-webkit-font-smoothing:antialiased;}
+  .header{position:sticky;top:0;z-index:20;border-bottom:1px solid var(--border);background:rgba(255,255,255,0.95);backdrop-filter:blur(8px);padding:0 24px;}
+  .header-inner{display:flex;align-items:center;justify-content:space-between;padding:10px 0;max-width:1600px;margin:0 auto;}
+  .header-left{display:flex;align-items:center;gap:12px;}
+  .badge{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:6px;background:var(--fg);color:var(--bg);font-size:13px;font-weight:600;}
+  .header h1{font-size:18px;font-weight:600;letter-spacing:-0.02em;}
+  .header-meta{font-size:12px;color:var(--muted-fg);}
+  .tabs{display:inline-flex;align-items:center;gap:4px;padding:4px;border-radius:12px;border:1px solid rgba(0,0,0,0.08);background:rgba(0,0,0,0.03);}
+  .tab{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:14px;font-weight:500;color:var(--muted-fg);cursor:pointer;white-space:nowrap;}
+  .tab.active{background:var(--bg);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,0.06);}
+  .tab svg{width:16px;height:16px;}
+  .content{max-width:1600px;margin:0 auto;padding:0 24px 48px;}
+  .filter-bar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:8px 12px;margin:8px 0 16px;}
+  .filter-label{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted-fg);}
+  .filter-value{font-size:13px;font-weight:500;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);}
+  .filter-sep{width:1px;height:25px;background:var(--border);}
+  .section-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.14em;color:rgba(115,115,115,0.9);padding-top:16px;margin-bottom:12px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+  .card-header{padding:16px 16px 4px;}
+  .card-title{font-size:18px;font-weight:600;line-height:1.3;letter-spacing:-0.01em;}
+  .card-desc{font-size:13px;color:var(--muted-fg);margin-top:2px;}
+  .card-content{padding:8px 16px 16px;}
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+  @media(max-width:1200px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:768px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;min-height:110px;display:flex;flex-direction:column;justify-content:space-between;}
+  .kpi-value{font-size:24px;font-weight:600;line-height:1;letter-spacing:-0.01em;}
+  .kpi-label{font-size:12px;font-weight:500;color:rgba(10,10,10,0.75);margin-top:6px;}
+  .kpi-sub{font-size:12px;font-weight:500;color:rgba(115,115,115,0.5);margin-top:4px;}
+  .kpi-bar-bg{height:6px;background:var(--muted);border-radius:3px;overflow:hidden;margin-top:8px;}
+  .kpi-bar-fill{height:100%;border-radius:3px;transition:width 0.3s;}
+  .waterfall-row{display:grid;grid-template-columns:200px 1fr 100px 100px 80px;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid rgba(0,0,0,0.04);font-size:13px;}
+  .waterfall-row:last-child{border-bottom:none;}
+  .waterfall-row.header{font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted-fg);background:var(--muted);border-bottom:1px solid var(--border);}
+  .waterfall-bar-bg{height:20px;background:var(--muted);border-radius:4px;overflow:hidden;position:relative;}
+  .waterfall-bar-shown{position:absolute;height:100%;border-radius:4px;opacity:0.25;}
+  .waterfall-bar-collected{position:absolute;height:100%;border-radius:4px;}
+  .num{text-align:right;font-variant-numeric:tabular-nums;}
+  .loc-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .loc-table th{text-align:left;padding:8px 14px;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted-fg);border-bottom:1px solid var(--border);background:var(--muted);position:sticky;top:0;z-index:1;cursor:pointer;user-select:none;}
+  .loc-table th:hover{color:var(--fg);}
+  .loc-table td{padding:7px 14px;border-bottom:1px solid rgba(0,0,0,0.04);font-variant-numeric:tabular-nums;}
+  .loc-table tr:hover td{background:rgba(0,0,0,0.015);}
+  .tab-content{display:none;}
+  .tab-content.active{display:block;}
+  .footer{text-align:center;font-size:11px;color:var(--muted-fg);padding:24px 0 16px;border-top:1px solid var(--border);margin-top:24px;}
+  .btn-apply{font-size:12px;font-weight:600;padding:6px 14px;border:none;border-radius:6px;background:var(--dc);color:#fff;cursor:pointer;}
+  .btn-apply:hover{opacity:0.9;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="header-left">
+      <div class="badge">CP</div>
+      <div>
+        <h1>ClearPay Collection Metrics</h1>
+        <div class="header-meta">NextCare</div>
+      </div>
+    </div>
+    <div class="tabs">
+      <span class="tab active" onclick="switchTab('overview')" data-tab="overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>
+        Overview
+      </span>
+      <span class="tab" onclick="switchTab('locations')" data-tab="locations">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+        Locations
+      </span>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+  <div class="filter-bar">
+    <span class="filter-label">Group</span>
+    <span class="filter-value">NextCare</span>
+    <div class="filter-sep"></div>
+    <span class="filter-label">Date Range</span>
+    <span class="filter-value">Mar 24, 2026 – Apr 22, 2026</span>
+  </div>
+
+  <div class="tab-content active" id="tab-overview">
+    <div class="section-title">Collection Summary</div>
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <div style="margin-top:24px;" class="section-title">Waterfall Attribution</div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Shown vs Collected by Component</div>
+      </div>
+      <div class="card-content" id="waterfallCard"></div>
+    </div>
+
+    <div style="margin-top:24px;" class="section-title">Additional and Unknown POS Charges</div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Unattributed POS Collections</div>
+        <div class="card-desc">Reasons for POS collections that are unattributed include looking at the card for benefits without inputting it into Solv, running eligibility in another system and collecting it in Solv, or collecting a past balance</div>
+      </div>
+      <div class="card-content" id="addlUnknownCard"></div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-locations">
+    <div class="section-title">Location Performance</div>
+    <div class="card">
+      <div class="card-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+        <div>
+          <div class="card-title">Collection Metrics by Location</div>
+          <div class="card-desc">All locations, sortable by column. Data through 2026-04-22.</div>
+        </div>
+        <button class="btn-apply" style="margin-top:4px;white-space:nowrap;flex-shrink:0;" onclick="downloadLocCSV()">&#8595; Download CSV</button>
+      </div>
+      <div class="card-content" id="locContent"></div>
+    </div>
+  </div>
+
+  <div class="footer">ClearPay Collection Metrics · NextCare · Mar 24, 2026 – Apr 22, 2026 · Generated 2026-04-23</div>
+</div>
+
+<script>
+// Daily (14): 0=dt 1=bkg 2=with_est 3=pos 4=cs 5=cc 6=ds 7=dc 8=ss 9=sc 10=os 11=oc 12=spill 13=noest_ins
+// Locations (15): 0=state 1=clinic 2=bkg 3=with_est 4=pos 5=cs 6=cc 7=ds 8=dc 9=ss 10=sc 11=os 12=oc 13=spill 14=noest_ins
+const RAW_DAILY = [["2026-03-24T00:00:00.000", 5033.0, 2941.0, 205698.8, 63748.57, 61281.57, 73854.16, 63409.26, 565.0, 8025.79, 1209.15, 598.35, 2175.55, 68493.11], ["2026-03-25T00:00:00.000", 5032.0, 2942.0, 204999.56, 64741.95, 61846.55, 77252.59, 66011.54, 330.0, 8852.86, 1143.46, 1085.78, 1988.17, 63149.15], ["2026-03-26T00:00:00.000", 4658.0, 2901.0, 186996.45, 58930.14, 56789.0, 69810.04, 58139.12, 0.0, 10463.7, 1569.25, 1423.43, 1160.33, 55954.92], ["2026-03-27T00:00:00.000", 4472.0, 2831.0, 180152.28, 56275.71, 54440.71, 64091.32, 54900.15, 895.0, 8539.58, 1646.39, 765.55, 2455.65, 57538.73], ["2026-03-28T00:00:00.000", 3582.0, 2380.0, 151991.05, 47222.37, 45767.9, 64312.13, 52745.95, 0.0, 3604.0, 890.95, 416.3, 1216.34, 46943.57], ["2026-03-29T00:00:00.000", 3704.0, 2480.0, 163417.87, 48820.0, 47196.0, 61667.42, 53300.73, 560.0, 5093.97, 1370.7, 1197.52, 2408.55, 52230.19], ["2026-03-30T00:00:00.000", 5246.0, 3315.0, 219556.99, 63545.17, 60886.17, 85852.14, 74969.17, 8980.0, 8767.45, 1448.47, 965.94, 1482.69, 69808.52], ["2026-03-31T00:00:00.000", 4981.0, 3331.0, 213564.47, 66109.09, 64006.69, 81479.67, 70436.71, 27595.0, 10534.78, 1409.68, 1186.14, 1836.77, 62797.49], ["2026-04-01T00:00:00.000", 4452.0, 3021.0, 185262.49, 57325.8, 55643.4, 74500.34, 65159.06, 40535.0, 9146.25, 2288.32, 1632.15, 920.38, 51515.99], ["2026-04-02T00:00:00.000", 4183.0, 2829.0, 166235.28, 54366.2, 52578.2, 64493.36, 55837.42, 32540.0, 10287.51, 1209.3, 916.85, 1083.58, 43072.95], ["2026-04-03T00:00:00.000", 4169.0, 2770.0, 186781.77, 55757.41, 54307.41, 70892.63, 61950.46, 27920.0, 11894.7, 1515.89, 837.38, 1858.01, 54967.72], ["2026-04-04T00:00:00.000", 3491.0, 2620.0, 159850.95, 51807.4, 50208.4, 66333.58, 57918.14, 27920.0, 10021.58, 1904.87, 1591.24, 999.37, 36724.21], ["2026-04-05T00:00:00.000", 2590.0, 1841.0, 126028.86, 40008.2, 39056.6, 54222.71, 45933.5, 30190.0, 7256.0, 801.85, 775.1, 885.05, 32249.75], ["2026-04-06T00:00:00.000", 5325.0, 3543.0, 230234.44, 67698.4, 64777.5, 91570.07, 78018.62, 43850.0, 13689.86, 2210.44, 1520.02, 2132.55, 69141.6], ["2026-04-07T00:00:00.000", 4767.0, 3246.0, 192685.12, 58193.75, 56679.99, 75837.39, 66222.39, 31870.0, 11596.4, 1060.01, 449.52, 1656.98, 55239.32], ["2026-04-08T00:00:00.000", 4829.0, 3294.0, 199090.8, 61334.03, 58444.43, 78964.37, 69185.55, 35190.0, 9385.0, 1972.47, 1222.02, 1281.85, 57807.79], ["2026-04-09T00:00:00.000", 4450.0, 2995.0, 186546.51, 54838.61, 53147.81, 68965.95, 59665.91, 30525.0, 12550.95, 1293.21, 967.5, 1830.94, 56450.71], ["2026-04-10T00:00:00.000", 4530.0, 3136.0, 183640.55, 58914.77, 57093.17, 68737.31, 59438.45, 27570.0, 11852.29, 1885.67, 1006.38, 1758.73, 50974.2], ["2026-04-11T00:00:00.000", 3567.0, 2610.0, 162499.03, 51175.8, 49450.4, 74350.04, 63693.74, 21915.0, 7939.69, 1160.27, 684.97, 1262.74, 38819.21], ["2026-04-12T00:00:00.000", 3509.0, 2527.0, 158321.75, 50847.2, 49291.8, 65336.38, 56929.14, 31905.0, 7435.2, 723.84, 509.47, 1307.6, 42180.14], ["2026-04-13T00:00:00.000", 5277.0, 3647.0, 223454.17, 66827.82, 64232.62, 91235.39, 80615.62, 36700.0, 13101.0, 1977.44, 1811.93, 2069.6, 61467.41], ["2026-04-14T00:00:00.000", 4667.0, 3257.0, 182769.64, 58859.6, 56812.0, 72728.83, 62561.59, 31575.0, 11315.0, 2147.87, 1502.83, 1562.9, 47124.68], ["2026-04-15T00:00:00.000", 4555.0, 3206.0, 186022.9, 57378.35, 55332.15, 78058.88, 67127.77, 38565.0, 11701.0, 2080.26, 1587.64, 1290.75, 47128.78], ["2026-04-16T00:00:00.000", 4427.0, 3105.0, 186097.71, 57152.4, 55572.4, 67808.87, 58499.7, 34220.0, 12302.39, 1105.63, 683.33, 715.58, 56193.44], ["2026-04-17T00:00:00.000", 4325.0, 3000.0, 182463.94, 56776.58, 54947.78, 70080.83, 60455.12, 36900.0, 10282.3, 1975.28, 1224.13, 820.78, 54441.53], ["2026-04-18T00:00:00.000", 3574.0, 2636.0, 159958.92, 50462.2, 48676.6, 66276.91, 58032.8, 29945.0, 11338.44, 1394.64, 850.61, 1732.74, 38594.52], ["2026-04-19T00:00:00.000", 3499.0, 2519.0, 156858.25, 49000.6, 47387.0, 59899.47, 52277.19, 32530.0, 8729.58, 1312.65, 1232.95, 680.87, 45816.84], ["2026-04-20T00:00:00.000", 5333.0, 3683.0, 217094.07, 67914.81, 66417.01, 85714.66, 76744.27, 42495.0, 11551.0, 1499.02, 894.02, 1558.27, 58118.0], ["2026-04-21T00:00:00.000", 4697.0, 3300.0, 188342.35, 59165.6, 57217.8, 74662.05, 66368.62, 17315.0, 7543.32, 2451.79, 1508.9, 1302.34, 52432.58], ["2026-04-22T00:00:00.000", 4702.0, 3256.0, 192224.03, 59881.73, 58125.33, 80462.37, 70743.27, 16590.0, 12153.59, 1028.96, 933.86, 812.88, 48385.24]];
+const RAW_LOCATIONS = [["AZ", "Apache Junction", 991.0, 620.0, 37901.45, 11836.0, 11138.53, 16646.1, 12980.86, 5970.0, 562.86, 633.85, 305.71, 114.57, 12129.92], ["AZ", "Arizona Virtual Visit", 4391.0, 3732.0, 133645.78, 38778.2, 38420.6, 52959.84, 43826.95, 21295.0, 24167.51, 560.09, 466.48, 3131.59, 28591.89], ["AZ", "Avondale", 1694.0, 1089.0, 79921.44, 19683.0, 18453.0, 33642.32, 27089.22, 9970.0, 1790.0, 585.45, 491.79, 252.0, 29936.14], ["AZ", "Camelback", 544.0, 369.0, 33803.61, 8324.7, 8209.5, 15777.54, 13452.43, 2325.0, 695.0, 154.84, 154.84, 188.46, 10575.67], ["AZ", "Carefree", 865.0, 599.0, 51804.56, 12490.2, 12361.8, 24290.05, 22064.9, 3320.0, 1301.0, 1147.15, 826.72, 745.7, 13888.99], ["AZ", "Casa Grande", 1170.0, 790.0, 52847.01, 14265.4, 13646.4, 19407.96, 17050.7, 7630.0, 2920.76, 411.96, 151.17, 399.88, 17505.72], ["AZ", "City Center", 6.0, 1.0, 0.0, 50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], ["AZ", "Cottonwood", 944.0, 532.0, 39120.95, 6769.0, 6645.6, 14784.62, 12918.41, 8655.0, 4271.61, 641.05, 641.05, 309.69, 14464.18], ["AZ", "Curry", 703.0, 500.0, 40929.86, 10893.0, 10588.0, 20495.34, 17900.46, 3310.0, 353.0, 342.26, 174.4, 151.36, 11150.64], ["AZ", "Dobson", 1915.0, 1259.0, 119988.92, 25993.4, 25233.0, 59620.72, 48191.91, 9960.0, 1716.0, 717.71, 208.01, 1654.15, 41231.27], ["AZ", "East Broadway", 828.0, 616.0, 33528.04, 11217.8, 11107.8, 13553.49, 13005.25, 4305.0, 3459.82, 597.03, 597.03, 64.14, 5271.0], ["AZ", "Eastmark", 955.0, 718.0, 62044.65, 15255.8, 15095.8, 37401.81, 34689.71, 4655.0, 149.95, 834.93, 375.44, 21.0, 11383.75], ["AZ", "Estrella", 942.0, 632.0, 45702.61, 14669.4, 13770.0, 17922.15, 14314.56, 8970.0, 2532.23, 265.0, 265.0, 35.0, 14695.82], ["AZ", "Flagstaff (Humphreys)", 686.0, 413.0, 35113.68, 9467.6, 9099.0, 15615.74, 13175.28, 5640.0, 1003.0, 235.8, 0.0, 75.14, 11865.34], ["AZ", "Flagstaff (Malpais)", 1028.0, 693.0, 58273.99, 15167.6, 14756.0, 27726.01, 24017.74, 5660.0, 1411.0, 445.61, 406.44, 474.0, 17148.81], ["AZ", "Gilbert Crossing", 429.0, 320.0, 25734.1, 6426.4, 6216.4, 12112.56, 10885.63, 2005.0, 2247.0, 239.24, 239.24, 237.75, 5958.08], ["AZ", "Glendale (N 43rd Ave)", 1116.0, 784.0, 46289.42, 13318.4, 12683.0, 17811.09, 15990.45, 4340.0, 703.59, 307.38, 307.38, 106.02, 15453.31], ["AZ", "Glendale (N 59th Ave)", 1010.0, 749.0, 55818.0, 15056.2, 14809.0, 25310.62, 21993.24, 5665.0, 1825.86, 905.9, 905.9, 40.0, 16419.86], ["AZ", "Glendale (W Northern Ave)", 2572.0, 1759.0, 119869.75, 34279.8, 33450.0, 53845.18, 44639.85, 7650.0, 3318.0, 977.28, 469.3, 251.83, 36531.57], ["AZ", "Higley", 935.0, 625.0, 54453.38, 14224.0, 13454.0, 28098.96, 23442.8, 4330.0, 956.0, 346.16, 145.0, 173.37, 15316.29], ["AZ", "In-Clinic Telemed Arizona", 59.0, 12.0, 455.0, 300.0, 90.0, 135.86, 0.0, 0.0, 100.0, 0.0, 0.0, 0.0, 265.0], ["AZ", "John Wayne", 1111.0, 828.0, 55266.01, 17113.8, 16815.6, 22382.52, 19028.02, 4655.0, 1151.86, 330.66, 330.66, 26.0, 17538.73], ["AZ", "Kino", 1364.0, 1036.0, 38063.99, 13890.6, 12336.2, 17593.23, 14968.93, 10280.0, 3295.22, 151.18, 151.18, 46.6, 6888.46], ["AZ", "Lake Havasu City", 698.0, 463.0, 18395.76, 7011.4, 5420.0, 9360.28, 2076.04, 5995.0, 5734.58, 413.18, 129.14, 5.0, 5061.0], ["AZ", "Laveen", 1430.0, 981.0, 52073.68, 16702.2, 16344.0, 26025.14, 21572.35, 6965.0, 2505.0, 1266.9, 569.45, 310.22, 10051.4], ["AZ", "Litchfield Park", 1145.0, 771.0, 54240.83, 16708.4, 15655.0, 24801.91, 18292.46, 9665.0, 1608.0, 538.3, 140.0, 191.0, 15911.67], ["AZ", "Mesa (N Power Rd)", 1168.0, 843.0, 59181.74, 17396.4, 16980.0, 24740.87, 22872.64, 4985.0, 1307.94, 622.17, 509.03, 0.0, 17143.07], ["AZ", "N Silverbell Rd.", 1054.0, 767.0, 45354.02, 14831.6, 14313.2, 23796.62, 20270.85, 9295.0, 635.0, 151.14, 151.14, 204.83, 9574.0], ["AZ", "Nogales", 1009.0, 614.0, 23926.72, 10003.0, 9627.4, 4879.58, 4305.01, 6645.0, 2280.0, 0.0, 0.0, 20.0, 7640.91], ["AZ", "North Mesa", 911.0, 660.0, 37812.13, 9917.5, 9599.1, 16406.4, 15454.46, 3645.0, 1601.0, 306.35, 306.35, 0.0, 10797.82], ["AZ", "Oak", 1108.0, 771.0, 71263.38, 18193.4, 17925.0, 34785.06, 29121.57, 3320.0, 1189.0, 1174.8, 539.21, 270.45, 20538.05], ["AZ", "Ocotillo", 843.0, 572.0, 49483.06, 12055.0, 11950.0, 26375.13, 20580.53, 5650.0, 1206.97, 632.48, 586.77, 841.04, 13811.11], ["AZ", "PV Occ Health", 22.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], ["AZ", "Peoria", 789.0, 597.0, 39084.77, 11768.0, 11513.0, 22326.85, 19769.23, 4325.0, 1212.0, 105.57, 105.57, 71.0, 6248.97], ["AZ", "Phoenix (19th Avenue)", 1175.0, 757.0, 38440.97, 10847.6, 10452.0, 14770.29, 13311.11, 5645.0, 1053.0, 63.86, 63.86, 71.0, 13234.0], ["AZ", "Phoenix (39th Ave)", 826.0, 496.0, 31740.84, 8071.4, 7843.0, 18718.48, 10559.78, 2325.0, 727.0, 808.74, 474.48, 0.0, 11886.58], ["AZ", "Phoenix (Arcadia)", 566.0, 404.0, 34764.58, 8388.0, 8338.0, 13810.36, 13030.87, 3005.0, 811.15, 652.04, 652.04, 295.67, 11716.85], ["AZ", "Phoenix (E Greenway Rd)", 631.0, 454.0, 31199.4, 7739.0, 7656.0, 18407.92, 15807.19, 3335.0, 1367.0, 85.2, 30.96, 0.0, 5993.25], ["AZ", "Phoenix (E Thomas Rd)", 2011.0, 1298.0, 88163.0, 24372.0, 23409.0, 34927.15, 25671.56, 12340.0, 1933.0, 492.66, 292.88, 142.0, 36118.56], ["AZ", "Phoenix (N Tatum Blvd)", 870.0, 645.0, 58691.94, 14649.0, 14489.0, 27839.2, 26875.41, 3335.0, 2139.86, 501.14, 314.07, 21.09, 14365.13], ["AZ", "Phoenix (Tramonto)", 869.0, 585.0, 53130.64, 15362.0, 14770.0, 24404.36, 20058.03, 3680.0, 539.0, 1235.33, 578.03, 463.85, 15283.76], ["AZ", "Phoenix (W McDowell Rd)", 1660.0, 1235.0, 50693.08, 12319.6, 12044.8, 13827.59, 12886.57, 10300.0, 2406.0, 634.83, 323.37, 139.0, 22054.11], ["AZ", "Prescott", 1244.0, 685.0, 41380.93, 11862.9, 9831.74, 19969.76, 13880.02, 7990.0, 3734.0, 198.35, 105.1, 0.0, 13594.21], ["AZ", "Prescott Valley", 1325.0, 737.0, 46532.56, 13388.6, 12254.4, 15681.07, 11990.94, 8960.0, 5831.58, 1032.95, 705.44, 231.6, 15213.75], ["AZ", "Price", 905.0, 605.0, 58757.33, 14096.4, 13143.0, 21238.37, 18461.16, 5325.0, 1804.0, 801.29, 801.29, 2399.02, 21481.08], ["AZ", "Ray", 524.0, 393.0, 29124.04, 9153.4, 8623.4, 14954.79, 11062.68, 1995.0, 1582.0, 559.92, 559.92, 972.64, 5346.87], ["AZ", "Sahuarita", 1300.0, 1062.0, 51883.7, 22833.8, 22239.4, 23392.88, 20790.57, 8665.0, 2704.59, 352.85, 218.08, 0.0, 5570.65], ["AZ", "Sedona", 587.0, 414.0, 29406.66, 7653.4, 7595.0, 13786.81, 13089.14, 5005.0, 1397.0, 607.35, 569.87, 0.0, 6625.65], ["AZ", "Shea", 744.0, 531.0, 49300.73, 12124.0, 11999.0, 20287.15, 19148.25, 3330.0, 2729.92, 777.73, 698.42, 162.35, 14685.31], ["AZ", "Sun City", 1011.0, 722.0, 32709.73, 14183.4, 14038.4, 13296.03, 10276.13, 1655.0, 365.0, 378.2, 207.62, 0.0, 7777.58], ["AZ", "Surprise", 1028.0, 571.0, 35897.79, 12721.4, 11418.0, 19518.31, 10304.2, 7325.0, 576.0, 235.8, 0.0, 225.0, 12963.59], ["AZ", "Swan", 763.0, 579.0, 26070.83, 9170.4, 8777.4, 10277.39, 9618.54, 4675.0, 1787.0, 299.37, 252.63, 0.0, 5635.26], ["AZ", "Thunderbird", 776.0, 593.0, 34853.04, 11286.0, 10918.0, 14234.4, 12520.4, 4970.0, 2636.0, 68.48, 68.48, 7.85, 8595.81], ["AZ", "Tucson (22nd St)", 810.0, 577.0, 18623.51, 6126.6, 5657.8, 7874.49, 6925.8, 5635.0, 2446.0, 157.91, 157.91, 121.0, 3315.0], ["AZ", "Tucson (E Pima St)", 849.0, 624.0, 27775.63, 9778.2, 9677.4, 10322.7, 9331.26, 5300.0, 1260.0, 459.97, 459.97, 0.0, 7167.0], ["AZ", "Tucson (N Oracle Rd)", 1945.0, 1330.0, 70424.42, 20896.8, 20242.6, 29713.04, 26089.88, 18245.0, 3310.0, 207.44, 207.44, 158.6, 20013.64], ["AZ", "Tucson (N Park Ave)", 1117.0, 890.0, 55918.2, 18918.4, 18733.4, 24479.46, 23834.29, 5635.0, 1168.74, 759.66, 759.66, 229.31, 10984.66], ["AZ", "Tucson (Old Spanish Trail)", 1618.0, 1137.0, 72692.39, 22451.8, 21721.8, 37273.25, 30344.33, 13285.0, 1037.86, 546.51, 312.53, 191.26, 18734.47], ["AZ", "Tucson (S Calle Santa Cruz)", 2139.0, 1659.0, 65010.77, 20940.6, 20039.4, 24797.37, 22187.65, 19895.0, 2609.0, 968.96, 782.1, 525.82, 18195.94], ["AZ", "Valencia", 1166.0, 899.0, 33705.98, 12302.2, 12174.8, 10997.18, 10059.66, 5965.0, 6954.0, 802.59, 364.47, 0.4, 3626.99], ["AZ", "Yuma", 1601.0, 752.0, 35504.8, 9711.8, 9216.4, 11516.01, 9624.35, 14665.0, 1055.0, 105.66, 55.9, 66.35, 14930.4], ["CO", "Arvada", 626.0, 383.0, 21986.01, 8394.0, 7859.0, 8591.06, 7049.17, 1325.0, 451.0, 264.47, 264.47, 87.28, 6260.09], ["CO", "Aurora", 295.0, 226.0, 12852.35, 2916.19, 2916.19, 4435.54, 4335.1, 1995.0, 373.0, 65.29, 65.29, 340.78, 4539.05], ["CO", "Broomfield", 664.0, 482.0, 28339.87, 11189.0, 11044.0, 9428.74, 8794.52, 2000.0, 464.0, 0.0, 0.0, 304.38, 7564.85], ["CO", "Colorado Virtual Visit", 126.0, 103.0, 3846.41, 1470.0, 1420.0, 954.41, 954.41, 665.0, 200.0, 0.0, 0.0, 0.0, 1272.0], ["CO", "Golden", 378.0, 291.0, 19836.56, 6117.0, 5926.0, 8239.61, 6783.23, 665.0, 1129.0, 112.32, 2.49, 536.17, 5484.67], ["CO", "Greeley", 451.0, 258.0, 16580.37, 4750.0, 4720.0, 4887.37, 3866.95, 1665.0, 766.0, 25.0, 25.0, 163.04, 7014.38], ["CO", "In-Clinic Telemed Colorado", 11.0, 7.0, 0.0, 180.0, 0.0, 136.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], ["CO", "Longmont", 162.0, 105.0, 6774.72, 2655.0, 2505.0, 1774.21, 1318.95, 0.0, 0.0, 0.0, 0.0, 26.18, 2838.59], ["CO", "Thornton", 110.0, 77.0, 4288.36, 1802.0, 1657.0, 893.07, 582.91, 330.0, 0.0, 0.0, 0.0, 190.45, 1654.0], ["KS", "6th St", 614.0, 468.0, 30096.86, 9777.62, 9568.62, 12566.4, 11410.91, 2330.0, 518.0, 0.0, 0.0, 66.0, 8503.33], ["KS", "Derby", 540.0, 399.0, 14347.98, 6058.0, 5426.0, 4244.97, 3862.75, 4655.0, 178.0, 187.71, 53.65, 0.0, 4802.58], ["KS", "Leavenworth", 633.0, 469.0, 15333.62, 5924.0, 5755.0, 3764.76, 3274.78, 7640.0, 534.0, 128.47, 128.47, 241.57, 5131.0], ["KS", "Maize", 942.0, 651.0, 33045.39, 12554.0, 12349.0, 11700.27, 11332.25, 5995.0, 2196.0, 69.42, 69.42, 0.0, 7059.72], ["KS", "Seneca", 880.0, 627.0, 24680.56, 8211.0, 8103.0, 6706.07, 6374.57, 5335.0, 1055.0, 147.13, 89.37, 308.62, 8756.0], ["MI", "Ann Arbor", 360.0, 155.0, 10299.08, 2498.0, 2125.0, 1807.56, 1807.56, 1000.0, 105.0, 0.38, 0.0, 170.12, 5955.4], ["MI", "Livonia", 729.0, 487.0, 22891.63, 9465.28, 9097.28, 7501.12, 6993.06, 1650.0, 348.0, 0.0, 0.0, 154.75, 6258.54], ["MI", "Waterford", 744.0, 270.0, 16512.72, 4571.55, 4222.55, 4989.12, 3247.4, 1985.0, 313.0, 0.0, 0.0, 530.82, 8210.95], ["MO", "Ambassador", 1101.0, 753.0, 51350.15, 16038.0, 15573.0, 20635.45, 19903.29, 5000.0, 789.0, 273.19, 273.19, 189.0, 14284.24], ["MO", "Lee's Summit", 731.0, 533.0, 33170.84, 11275.0, 10815.0, 15258.65, 14650.45, 5310.0, 720.0, 61.16, 61.16, 186.01, 6627.72], ["MO", "Liberty", 904.0, 616.0, 41163.24, 13294.0, 12399.0, 19312.61, 14913.04, 4320.0, 439.0, 592.53, 245.99, 1039.91, 11409.0], ["MO", "Nifong", 1036.0, 735.0, 54916.93, 15059.0, 14584.0, 25946.9, 24031.09, 6645.0, 1276.0, 91.91, 91.91, 148.0, 14579.93], ["NC", "Burlington", 1107.0, 658.0, 36919.71, 10553.14, 9952.14, 9572.04, 9040.67, 3660.0, 2062.0, 0.0, 0.0, 390.87, 15619.03], ["NC", "Cary", 715.0, 454.0, 29601.92, 12096.0, 11426.0, 11157.19, 10446.25, 1995.0, 379.0, 7.97, 7.97, 0.0, 7349.7], ["NC", "Eden", 591.0, 429.0, 16005.75, 6008.55, 5943.55, 3302.52, 2937.51, 1325.0, 3860.14, 36.48, 36.48, 3.07, 3225.0], ["NC", "Elizabeth City", 645.0, 319.0, 23954.71, 6561.55, 6408.55, 3212.18, 2815.77, 2980.0, 1835.0, 117.88, 117.88, 228.17, 12223.17], ["NC", "Fayetteville", 2115.0, 1427.0, 53663.67, 18781.0, 17989.0, 12629.83, 11208.39, 10955.0, 4133.0, 47.05, 47.05, 304.23, 19273.0], ["NC", "Gastonia", 750.0, 459.0, 22166.09, 6830.14, 6667.14, 6015.43, 5624.85, 1335.0, 1515.0, 0.0, 0.0, 66.86, 8228.05], ["NC", "Raleigh (Wake Forest Rd)", 464.0, 228.0, 15910.58, 4652.0, 4452.0, 4508.03, 4332.58, 1330.0, 793.0, 0.0, 0.0, 0.0, 6238.0], ["NC", "Shelby", 1070.0, 569.0, 24077.24, 7067.0, 6659.0, 6521.25, 5246.21, 3970.0, 3993.0, 0.0, 0.0, 219.03, 7712.0], ["NE", "66th St", 716.0, 562.0, 32254.79, 7904.52, 7904.52, 14445.58, 14107.18, 5670.0, 1824.82, 241.81, 241.81, 636.02, 7380.82], ["NE", "Papillion", 654.0, 357.0, 26218.52, 6702.52, 6277.52, 12256.51, 11534.63, 11305.0, 3551.0, 53.12, 53.12, 59.64, 4887.61], ["NE", "Papillion Primary Care", 127.0, 72.0, 3385.26, 995.0, 655.0, 1929.06, 1245.26, 330.0, 485.0, 0.0, 0.0, 0.0, 1000.0], ["OK", "Del City", 805.0, 567.0, 20104.31, 7808.61, 7598.61, 3309.11, 2910.97, 4965.0, 2129.0, 0.0, 0.0, 1362.61, 5635.07], ["OK", "Edmond", 134.0, 90.0, 7315.99, 1572.61, 1517.61, 1334.78, 1190.54, 330.0, 599.0, 0.0, 0.0, 0.0, 3874.0], ["OK", "Edmond (N Pennsylvania)", 342.0, 231.0, 11546.37, 4250.41, 4105.41, 2286.61, 2229.81, 2000.0, 1441.72, 0.0, 0.0, 167.45, 3525.6], ["OK", "Lawton", 1256.0, 852.0, 26053.41, 9599.0, 8594.0, 6271.3, 4535.68, 12260.0, 742.0, 256.68, 0.0, 616.02, 10870.76], ["OK", "Midwest City", 893.0, 679.0, 22576.03, 10595.0, 10290.0, 4776.78, 4537.48, 2315.0, 620.0, 0.0, 0.0, 334.55, 6575.0], ["OK", "Moore", 547.0, 294.0, 15088.4, 6407.0, 6058.0, 3474.29, 2602.25, 1330.0, 166.0, 69.09, 0.0, 111.66, 5912.49], ["OK", "Newcastle", 652.0, 423.0, 20110.67, 8816.01, 8208.61, 5979.99, 5449.34, 4645.0, 847.0, 32.5, 32.5, 253.5, 5312.72], ["OK", "Norman", 590.0, 415.0, 17443.78, 5845.0, 5633.0, 5011.07, 4392.3, 5635.0, 954.0, 0.0, 0.0, 429.99, 5698.49], ["OK", "Oklahoma City (N Rockwell Ave)", 542.0, 344.0, 15482.07, 6688.14, 6180.0, 3650.21, 2408.81, 2325.0, 655.0, 0.0, 0.0, 336.21, 5625.74], ["OK", "Oklahoma City (NW Expressway)", 796.0, 492.0, 25340.44, 8077.1, 7870.1, 6081.27, 5864.55, 2325.0, 653.0, 0.0, 0.0, 418.85, 9986.55], ["OK", "Oklahoma City (S Western Ave)", 441.0, 291.0, 11607.93, 4334.0, 4094.0, 3539.84, 3388.31, 2985.0, 369.0, 43.78, 0.0, 72.62, 3381.0], ["OK", "Yukon", 640.0, 407.0, 18380.19, 7979.0, 7574.0, 5965.18, 5395.52, 3310.0, 190.0, 2.09, 2.09, 240.64, 4957.94], ["TX", "Alice - a BSWHealth partner", 1219.0, 742.0, 41591.76, 18770.0, 18004.0, 9846.35, 8701.62, 4110.0, 3906.0, 714.79, 232.95, 447.0, 10109.77], ["TX", "American Way", 742.0, 516.0, 37483.1, 12306.0, 12241.0, 12462.51, 11610.54, 5985.0, 6591.0, 389.24, 308.36, 106.0, 6467.2], ["TX", "Arlington", 461.0, 353.0, 25105.68, 8177.0, 7892.0, 10429.63, 9512.05, 2320.0, 2566.0, 82.05, 82.05, 0.0, 4653.58], ["TX", "Beeville - a BSWHealth partner", 919.0, 474.0, 29525.77, 11503.41, 11038.41, 6622.76, 5829.06, 2545.0, 4768.0, 230.0, 30.0, 5.0, 7850.3], ["TX", "Carrollton", 273.0, 189.0, 16780.45, 4694.0, 4674.0, 6339.51, 5445.5, 665.0, 75.0, 221.38, 50.0, 68.4, 6377.55], ["TX", "Catclaw", 1135.0, 348.0, 41190.09, 6926.0, 6417.0, 7008.5, 5654.5, 5950.0, 517.0, 767.02, 255.59, 209.0, 27942.0], ["TX", "Cedar Hill", 686.0, 497.0, 32715.13, 12606.0, 12486.0, 12808.11, 12185.57, 4985.0, 425.0, 493.21, 493.21, 117.35, 6722.0], ["TX", "Cedar Park", 579.0, 287.0, 38917.31, 8020.0, 7845.0, 14376.59, 14272.66, 3655.0, 713.0, 690.0, 525.0, 296.0, 14924.65], ["TX", "Cibolo - a BSWHealth partner", 539.0, 385.0, 21615.22, 8745.0, 8336.0, 8446.02, 8024.06, 7950.0, 537.0, 283.11, 160.55, 162.19, 3729.42], ["TX", "Clear Lake - a BSWHealth partner", 551.0, 265.0, 26205.17, 6375.0, 6355.0, 7235.25, 6295.25, 665.0, 4998.71, 460.0, 305.0, 260.37, 7790.84], ["TX", "DeSoto", 581.0, 405.0, 23862.24, 8815.0, 8745.0, 7547.37, 6952.37, 3000.0, 2138.0, 82.58, 82.58, 79.0, 5749.29], ["TX", "Garland", 376.0, 225.0, 20424.31, 6810.0, 6740.0, 2946.18, 2946.18, 335.0, 1968.0, 230.0, 160.0, 100.0, 8530.13], ["TX", "Georgetown", 615.0, 400.0, 29988.17, 9692.0, 9387.0, 8864.5, 8424.5, 7640.0, 2060.0, 223.52, 221.9, 369.0, 8686.5], ["TX", "Hewitt", 958.0, 639.0, 41228.25, 15376.0, 14771.0, 14740.09, 12992.22, 6980.0, 3555.0, 248.45, 248.45, 269.0, 9362.58], ["TX", "Hillcrest (Crosslake)", 247.0, 189.0, 11028.48, 4890.0, 4800.0, 3650.48, 3300.48, 1000.0, 618.0, 0.0, 0.0, 0.0, 2260.0], ["TX", "Hwy 351", 696.0, 454.0, 34087.46, 9124.0, 8979.0, 10533.68, 9563.68, 2995.0, 231.0, 0.0, 0.0, 97.78, 14530.0], ["TX", "Kingwood - a BSWHealth partner", 532.0, 315.0, 23957.97, 7648.0, 7558.0, 5339.67, 5339.67, 3655.0, 652.0, 37.91, 37.91, 1166.05, 9031.34], ["TX", "LBJ Fwy", 276.0, 125.0, 12528.81, 3245.0, 3115.0, 3349.28, 3180.8, 330.0, 0.0, 0.0, 0.0, 338.0, 5737.5], ["TX", "Lacy Lakeview", 824.0, 574.0, 30478.6, 10542.41, 10212.41, 10738.94, 9244.95, 5650.0, 4286.0, 80.24, 80.24, 60.0, 6345.0], ["TX", "Lewisville", 690.0, 435.0, 38142.19, 10530.0, 10205.0, 16698.69, 14914.92, 3315.0, 1799.0, 341.17, 58.17, 129.0, 10854.06], ["TX", "Marble Falls", 1043.0, 620.0, 49623.99, 13301.0, 13180.0, 12493.45, 11482.52, 7290.0, 2923.0, 0.0, 0.0, 323.59, 21414.88], ["TX", "McCart", 204.0, 120.0, 10214.25, 2864.0, 2859.0, 3730.18, 2854.25, 335.0, 38.0, 0.0, 0.0, 0.0, 4443.0], ["TX", "McKinney", 1040.0, 780.0, 56047.61, 18622.0, 18552.0, 24463.71, 22525.94, 2650.0, 9134.0, 6.73, 6.73, 191.0, 5299.94], ["TX", "Mesquite", 2106.0, 1453.0, 90140.19, 32530.0, 31269.0, 24712.29, 19964.0, 14920.0, 17147.46, 682.11, 544.44, 844.0, 20628.29], ["TX", "Mockingbird", 999.0, 724.0, 74014.19, 19072.0, 18766.5, 37863.34, 35389.56, 3990.0, 732.0, 390.18, 325.63, 175.0, 18085.5], ["TX", "Montgomery - a BSWHealth partner", 796.0, 552.0, 35442.81, 12683.41, 12218.41, 9792.75, 9026.46, 5975.0, 777.5, 0.0, 0.0, 870.82, 11658.62], ["TX", "North Dallas", 398.0, 308.0, 22995.81, 7719.0, 7719.0, 10586.1, 9846.79, 0.0, 1687.0, 156.02, 156.02, 155.0, 3372.0], ["TX", "Pasadena - a BSWHealth partner", 632.0, 337.0, 24969.81, 7070.0, 6890.0, 5753.91, 5073.91, 3655.0, 645.0, 0.0, 0.0, 399.36, 11618.54], ["TX", "Pearland - a BSWHealth partner", 592.0, 345.0, 30308.01, 8861.0, 8730.0, 9891.06, 8938.39, 3650.0, 798.0, 71.96, 71.96, 481.0, 10779.81], ["TX", "Plano", 866.0, 674.0, 54703.15, 16653.0, 16308.0, 27332.81, 25251.35, 2995.0, 4474.81, 391.26, 325.56, 332.0, 7572.43], ["TX", "Port Lavaca - a BSWHealth partner", 373.0, 263.0, 21546.85, 5920.0, 5770.0, 6761.51, 6436.76, 1665.0, 5345.0, 425.06, 425.06, 863.2, 3262.42], ["TX", "Rayford - a BSWHealth partner", 1051.0, 712.0, 53367.89, 19467.0, 19113.0, 19476.47, 16693.71, 5960.0, 604.85, 435.98, 190.98, 1431.56, 14107.75], ["TX", "Richardson", 722.0, 524.0, 44434.68, 12198.41, 12088.41, 22006.43, 20927.18, 995.0, 3194.0, 278.76, 238.93, 360.0, 7466.16], ["TX", "Round Rock", 575.0, 213.0, 28975.83, 6345.0, 6044.0, 8048.25, 6903.25, 2230.0, 721.0, 0.0, 0.0, 80.0, 14417.58], ["TX", "San Antonio (Culebra Rd) - a BSWHealth partner", 944.0, 557.0, 33495.99, 13169.0, 12724.0, 10014.68, 8350.0, 8625.0, 1303.9, 372.86, 162.86, 485.93, 9058.3], ["TX", "San Antonio (Huebner Rd) - a BSWHealth partner", 672.0, 514.0, 36158.51, 13606.0, 13548.0, 16338.13, 14341.8, 5310.0, 332.0, 71.22, 71.22, 577.92, 6999.57], ["TX", "San Antonio (Stone Oak) - a BSWHealth partner", 777.0, 546.0, 41555.3, 12883.0, 12358.0, 17027.36, 15657.25, 7960.0, 1222.0, 207.82, 24.2, 334.85, 11050.0], ["TX", "San Antonio (Terrell Plaza) - a BSWHealth partner", 533.0, 344.0, 18901.74, 7351.0, 7019.0, 7588.47, 5400.07, 6545.0, 516.5, 172.17, 172.17, 415.0, 5141.0], ["TX", "San Antonio (Woodlake) - a BSWHealth partner", 1166.0, 727.0, 35403.08, 15231.0, 14773.0, 9941.79, 8324.5, 6620.0, 779.64, 86.06, 60.0, 934.03, 9083.28], ["TX", "Sherman", 722.0, 579.0, 38595.08, 15352.0, 15322.0, 13519.1, 12249.86, 4645.0, 5488.0, 605.97, 605.97, 55.0, 4985.77], ["TX", "Tarrant", 584.0, 472.0, 35097.6, 11268.0, 10908.0, 18063.8, 17031.94, 1995.0, 640.67, 218.99, 121.0, 729.99, 5726.0], ["TX", "Victoria (Sam Houston Dr) - a BSWHealth partner", 733.0, 421.0, 31780.2, 9022.0, 8742.0, 9194.71, 8164.71, 2995.0, 5209.0, 243.5, 243.5, 791.62, 8860.53], ["TX", "Victoria (Twin Fountains Dr) - a BSWHealth partner", 881.0, 612.0, 45487.95, 15265.0, 15049.0, 15172.85, 14409.61, 2975.0, 1192.0, 0.0, 0.0, 366.29, 13241.05], ["TX", "West Plano", 780.0, 615.0, 51471.32, 16974.41, 16925.41, 20150.62, 19597.08, 1670.0, 465.0, 867.82, 867.82, 236.0, 13120.01], ["TX", "William Cannon", 613.0, 415.0, 36086.63, 12573.0, 12542.0, 16226.35, 14817.79, 2330.0, 2867.0, 518.6, 331.54, 51.0, 5505.3], ["VA", "Dumfries", 723.0, 580.0, 22773.19, 10106.37, 9866.37, 7483.8, 5831.17, 2660.0, 2023.0, 98.93, 98.93, 504.76, 4913.96], ["VA", "Fredericksburg (Plank Rd)", 712.0, 570.0, 24746.82, 11074.0, 11013.0, 7902.39, 7159.17, 1985.0, 857.0, 67.32, 50.0, 51.0, 5155.28], ["VA", "Fredericksburg (S Gateway Dr)", 335.0, 225.0, 11142.51, 3879.0, 3822.0, 2020.73, 1867.36, 1675.0, 585.0, 193.15, 193.15, 15.0, 4639.0], ["VA", "Fredericksburg (White Oak Rd)", 914.0, 736.0, 26433.11, 14868.0, 14520.0, 6839.79, 6567.28, 2325.0, 416.0, 133.65, 133.65, 118.81, 4575.37], ["VA", "Woodbridge", 303.0, 230.0, 11045.2, 4355.0, 4352.0, 3769.15, 3352.68, 665.0, 827.0, 0.0, 0.0, 25.0, 2463.52], ["WY", "Bluegrass", 787.0, 499.0, 32436.68, 10150.0, 9566.0, 12524.84, 11463.98, 3315.0, 642.0, 653.3, 653.3, 0.0, 10001.4], ["WY", "In-Clinic Telemed Wyoming", 12.0, 4.0, 210.0, 0.0, 0.0, 320.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 210.0], ["WY", "Wyoming Virtual Visit", 15.0, 11.0, 1067.6, 125.0, 125.0, 505.6, 386.6, 0.0, 139.0, 0.0, 0.0, 0.0, 456.0]];
+
+const fmtK = n => n >= 1000000 ? '$' + (n/1000000).toFixed(1) + 'M'
+                : n >= 1000    ? '$' + (n/1000).toFixed(0) + 'K'
+                :                '$' + Math.round(n);
+const pct = (a, b) => b > 0 ? ((a / b) * 100).toFixed(1) + '%' : '-';
+const COLORS = {copay:'#7c3aed', dc:'#2563eb', sp:'#d97706', unclass:'#6b7280', fg:'#0a0a0a'};
+
+function totals() {
+  const T = {bookings:0, with_est:0, pos:0, cs:0, cc:0, ds:0, dc:0, ss:0, sc:0, os:0, oc:0, spill:0, noest:0};
+  for (const r of RAW_DAILY) {
+    T.bookings += r[1]; T.with_est += r[2]; T.pos += r[3];
+    T.cs += r[4]; T.cc += r[5]; T.ds += r[6]; T.dc += r[7];
+    T.ss += r[8]; T.sc += r[9]; T.os += r[10]; T.oc += r[11];
+    T.spill += r[12]; T.noest += r[13];
+  }
+  return T;
+}
+
+function locTotals() {
+  const T = {bookings:0, pos:0, cs:0, cc:0, ds:0, dc:0, ss:0, sc:0, os:0, oc:0, spill:0, noest:0};
+  for (const r of RAW_LOCATIONS) {
+    T.bookings += r[2]; T.pos += r[4];
+    T.cs += r[5]; T.cc += r[6]; T.ds += r[7]; T.dc += r[8];
+    T.ss += r[9]; T.sc += r[10]; T.os += r[11]; T.oc += r[12];
+    T.spill += r[13]; T.noest += r[14];
+  }
+  return T;
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + name));
+  if (name === 'locations') renderLocations();
+}
+
+function renderOverview() {
+  const T = totals();
+  const avgPerBkg = T.pos / T.bookings;
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi" style="border-top:4px solid ${COLORS.fg}">
+      <div>
+        <div class="kpi-value">${fmtK(T.pos)}</div>
+        <div class="kpi-label">Total POS Collected</div>
+        <div class="kpi-sub">$${avgPerBkg.toFixed(0)} avg/booking</div>
+      </div>
+    </div>
+    <div class="kpi" style="border-top:4px solid ${COLORS.copay}">
+      <div>
+        <div class="kpi-value">${fmtK(T.cc)}</div>
+        <div class="kpi-label">Copay Collected</div>
+        <div class="kpi-sub">${pct(T.cc, T.cs)} of shown</div>
+      </div>
+      <div class="kpi-bar-bg"><div class="kpi-bar-fill" style="width:${Math.min(100,T.cc/T.cs*100).toFixed(1)}%;background:${COLORS.copay}"></div></div>
+    </div>
+    <div class="kpi" style="border-top:4px solid ${COLORS.dc}">
+      <div>
+        <div class="kpi-value">${fmtK(T.dc)}</div>
+        <div class="kpi-label">Deductible + Coinsurance Collected</div>
+        <div class="kpi-sub">${pct(T.dc, T.ds)} of shown</div>
+      </div>
+      <div class="kpi-bar-bg"><div class="kpi-bar-fill" style="width:${Math.min(100,T.dc/T.ds*100).toFixed(1)}%;background:${COLORS.dc}"></div></div>
+    </div>
+    <div class="kpi" style="border-top:4px solid ${COLORS.sp}">
+      <div>
+        <div class="kpi-value">${fmtK(T.sc)}</div>
+        <div class="kpi-label">Self-Pay Collected</div>
+        <div class="kpi-sub">${pct(T.sc, T.ss)} of shown</div>
+      </div>
+      <div class="kpi-bar-bg"><div class="kpi-bar-fill" style="width:${Math.min(100,T.sc/T.ss*100).toFixed(1)}%;background:${COLORS.sp}"></div></div>
+    </div>
+  `;
+
+  const maxShown = Math.max(T.cs, T.ds, T.ss, T.os);
+
+  const row = (label, color, shown, collected, rate) => `
+    <div class="waterfall-row">
+      <span style="font-weight:500;color:${color}">${label}</span>
+      <div class="waterfall-bar-bg">
+        <div class="waterfall-bar-shown" style="width:${(shown/maxShown*100).toFixed(2)}%;background:${color}"></div>
+        <div class="waterfall-bar-collected" style="width:${(collected/maxShown*100).toFixed(2)}%;background:${color}"></div>
+      </div>
+      <span class="num">${fmtK(shown)}</span>
+      <span class="num">${fmtK(collected)}</span>
+      <span class="num">${rate}</span>
+    </div>`;
+
+  document.getElementById('waterfallCard').innerHTML = `
+    <div class="waterfall-row header"><span>Component</span><span>Shown vs Collected</span><span class="num">Shown</span><span class="num">Collected</span><span class="num">Rate</span></div>
+    ${row('Copay', COLORS.copay, T.cs, T.cc, pct(T.cc, T.cs))}
+    ${row('Deductible + Coinsurance', COLORS.dc, T.ds, T.dc, pct(T.dc, T.ds))}
+    ${row('Self-Pay', COLORS.sp, T.ss, T.sc, pct(T.sc, T.ss))}
+    ${row('Other / Mixed', COLORS.unclass, T.os, T.oc, pct(T.oc, T.os))}
+    <div class="waterfall-row" style="font-weight:600;border-top:2px solid var(--border);">
+      <span>Total POS</span><div></div>
+      <span class="num"></span>
+      <span class="num">${fmtK(T.pos)}</span>
+      <span class="num"></span>
+    </div>
+  `;
+
+  document.getElementById('addlUnknownCard').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:4px;">
+      <div class="kpi" style="border-top:4px solid ${COLORS.unclass}">
+        <div>
+          <div class="kpi-value">${fmtK(T.spill)}</div>
+          <div class="kpi-label">Overcollections on ClearPay estimates</div>
+          <div class="kpi-sub">${pct(T.spill, T.pos)} of total POS</div>
+        </div>
+      </div>
+      <div class="kpi" style="border-top:4px solid ${COLORS.unclass}">
+        <div>
+          <div class="kpi-value">${fmtK(T.noest)}</div>
+          <div class="kpi-label">Revenue collected where no RTE is run (insured patients)</div>
+          <div class="kpi-sub">${pct(T.noest, T.pos)} of total POS</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+let _locSortCol = 4, _locSortAsc = false;
+
+function renderLocations() {
+  const cols = [
+    {key:1,        label:'Location',         num:false},
+    {key:0,        label:'State',            num:false},
+    {key:6,        label:'Copay Coll',       num:true},
+    {key:5,        label:'Copay Shown',      num:true},
+    {key:'pctC',   label:'% Copay',          num:true},
+    {key:8,        label:'Ded+Coins Coll',   num:true},
+    {key:7,        label:'Ded+Coins Shown',  num:true},
+    {key:'pctDC',  label:'% Ded+Coins',      num:true},
+    {key:10,       label:'Self-Pay Coll',    num:true},
+    {key:9,        label:'Self-Pay Shown',   num:true},
+    {key:'pctSP',  label:'% Self-Pay',       num:true},
+    {key:13,       label:'Addl Patient Pmts',num:true},
+    {key:14,       label:'No RTE (insured)', num:true},
+    {key:4,        label:'Total POS',        num:true},
+  ];
+  const val = (r, key) => {
+    if (key === 'pctC')  return r[5] > 0 ? r[6]/r[5] : 0;
+    if (key === 'pctDC') return r[7] > 0 ? r[8]/r[7] : 0;
+    if (key === 'pctSP') return r[9] > 0 ? r[10]/r[9] : 0;
+    return r[key];
+  };
+  const sorted = [...RAW_LOCATIONS].sort((a, b) => {
+    const va = val(a, _locSortCol), vb = val(b, _locSortCol);
+    if (typeof va === 'string') return _locSortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return _locSortAsc ? va - vb : vb - va;
+  });
+  const arrow = key => key === _locSortCol ? (_locSortAsc ? ' \u25B2' : ' \u25BC') : '';
+  const header = cols.map((c,i) => `<th class="${c.num?'num':''}" onclick="sortLoc(${i})">${c.label}${arrow(c.key)}</th>`).join('');
+  const rows = sorted.map(r => {
+    const cells = cols.map(c => {
+      const v = val(r, c.key);
+      if (c.key === 'pctC' || c.key === 'pctDC' || c.key === 'pctSP') return `<td class="num">${(v*100).toFixed(1)}%</td>`;
+      if (c.num) return `<td class="num">${fmtK(v)}</td>`;
+      return `<td>${v}</td>`;
+    }).join('');
+    return `<tr>${cells}</tr>`;
+  }).join('');
+
+  const T = locTotals();
+  const totalsRow = `
+    <td style="font-weight:600">Total</td>
+    <td></td>
+    <td class="num" style="font-weight:600">${fmtK(T.cc)}</td>
+    <td class="num" style="font-weight:600">${fmtK(T.cs)}</td>
+    <td class="num" style="font-weight:600">${(T.cs>0?T.cc/T.cs*100:0).toFixed(1)}%</td>
+    <td class="num" style="font-weight:600">${fmtK(T.dc)}</td>
+    <td class="num" style="font-weight:600">${fmtK(T.ds)}</td>
+    <td class="num" style="font-weight:600">${(T.ds>0?T.dc/T.ds*100:0).toFixed(1)}%</td>
+    <td class="num" style="font-weight:600">${fmtK(T.sc)}</td>
+    <td class="num" style="font-weight:600">${fmtK(T.ss)}</td>
+    <td class="num" style="font-weight:600">${(T.ss>0?T.sc/T.ss*100:0).toFixed(1)}%</td>
+    <td class="num" style="font-weight:600">${fmtK(T.spill)}</td>
+    <td class="num" style="font-weight:600">${fmtK(T.noest)}</td>
+    <td class="num" style="font-weight:600">${fmtK(T.pos)}</td>
+  `;
+
+  document.getElementById('locContent').innerHTML = `
+    <div style="overflow-x:auto"><table class="loc-table">
+      <thead><tr>${header}</tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr style="border-top:2px solid var(--border);background:var(--muted)">${totalsRow}</tr></tfoot>
+    </table></div>`;
+}
+
+function sortLoc(idx) {
+  const cols = [1,0,6,5,'pctC',8,7,'pctDC',10,9,'pctSP',13,14,4];
+  const key = cols[idx];
+  if (_locSortCol === key) _locSortAsc = !_locSortAsc;
+  else { _locSortCol = key; _locSortAsc = (key === 1 || key === 0); }
+  renderLocations();
+}
+
+function downloadLocCSV() {
+  const headers = ['Location','State','Copay Collected','Copay Shown','% Copay',
+                   'Ded+Coins Collected','Ded+Coins Shown','% Ded+Coins',
+                   'Self-Pay Collected','Self-Pay Shown','% Self-Pay',
+                   'Other Collected','Other Shown',
+                   'Addl Patient Pmts','No RTE (insured)','Total POS'];
+  const rows = RAW_LOCATIONS.map(r => {
+    const pC  = r[5] > 0 ? (r[6]/r[5]*100).toFixed(1)+'%' : '0%';
+    const pDC = r[7] > 0 ? (r[8]/r[7]*100).toFixed(1)+'%' : '0%';
+    const pSP = r[9] > 0 ? (r[10]/r[9]*100).toFixed(1)+'%' : '0%';
+    return [r[1], r[0], r[6], r[5], pC, r[8], r[7], pDC, r[10], r[9], pSP, r[12], r[11], r[13], r[14], r[4]];
+  });
+  const csv = [headers, ...rows].map(row => row.map(v => JSON.stringify(v ?? '')).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = 'clearpay-nextcare-2026-03-24-to-2026-04-22.csv';
+  a.click();
+}
+
+renderOverview();
+</script>
+
+</body></html>
