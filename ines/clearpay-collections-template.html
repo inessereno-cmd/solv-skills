@@ -286,7 +286,7 @@ function renderLocations() {
     if (typeof va === 'string') return _locSortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
     return _locSortAsc ? va - vb : vb - va;
   });
-  const arrow = key => key === _locSortCol ? (_locSortAsc ? ' \u25B2' : ' \u25BC') : '';
+  const arrow = key => key === _locSortCol ? (_locSortAsc ? ' ▲' : ' ▼') : '';
   const header = cols.map((c,i) => `<th class="${c.num?'num':''}" onclick="sortLoc(${i})">${c.label}${arrow(c.key)}</th>`).join('');
   const rows = sorted.map(r => {
     const cells = cols.map(c => {
