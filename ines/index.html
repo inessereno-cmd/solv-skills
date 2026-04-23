@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPACE MISSION — SOLV</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#040810;--card:#0a1628;--cyan:#00E5FF;--gold:#FFD700;
+  --orange:#FF6B35;--purple:#A855F7;--green:#00F5A0;--red:#FF3860;
+  --dim:#7090AA;--white:#fff;--font:'Share Tech Mono',monospace;
+}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--white);font-family:var(--font);overflow:hidden;user-select:none}
+
+/* ── SCREENS ── */
+.screen{position:fixed;top:0;left:0;width:100vw;height:100vh;display:none;flex-direction:column;z-index:10}
+.screen.active{display:flex}
+
+/* ── STARS ── */
+#stars{position:fixed;inset:0;z-index:0;pointer-events:none}
+.star{position:absolute;border-radius:50%;background:#fff;animation:tw var(--d) ease-in-out infinite alternate}
+@keyframes tw{from{opacity:var(--lo)}to{opacity:var(--hi)}}
+/* Q2 warm stars */
+#stars2{position:fixed;inset:0;z-index:0;pointer-events:none;display:none}
+#stars2.active{display:block}
+.star2{position:absolute;border-radius:50%;animation:tw var(--d) ease-in-out infinite alternate}
+
+/* ── FLASH ── */
+#flash{position:fixed;inset:0;z-index:500;pointer-events:none;opacity:0;transition:opacity .2s}
+
+/* ══════════ BOOT ══════════ */
+#s-boot{background:#000;justify-content:center;align-items:center;z-index:100}
+.boot-wrap{width:min(600px,90vw)}
+.boot-logo{font-family:'Orbitron',sans-serif;font-size:clamp(24px,4vw,48px);font-weight:900;color:var(--green);letter-spacing:4px;margin-bottom:28px;text-shadow:0 0 30px rgba(0,245,160,.5)}
+.boot-line{font-size:11px;color:#0d8040;letter-spacing:2px;line-height:2.2;opacity:0;animation:fadeIn .05s forwards}
+@keyframes fadeIn{to{opacity:1}}
+.boot-bar-wrap{margin-top:20px;height:3px;background:#0a2010;border-radius:2px;overflow:hidden}
+.boot-bar{height:100%;background:var(--green);width:0;transition:width .06s linear;box-shadow:0 0 8px var(--green)}
+.boot-pct{margin-top:8px;font-size:10px;color:#0d8040;letter-spacing:2px}
+@keyframes blink{50%{opacity:0}}
+
+/* ══════════ INTRO ══════════ */
+#s-intro{background:var(--bg);justify-content:center;align-items:center;z-index:90}
+.terminal{width:min(700px,92vw);background:#000;border:1px solid rgba(0,229,255,.25);box-shadow:0 0 40px rgba(0,229,255,.08)}
+.terminal-head{background:#071520;padding:10px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(0,229,255,.15)}
+.tc{width:11px;height:11px;border-radius:50%}
+.terminal-ttl{font-size:9px;letter-spacing:2px;color:var(--dim);margin-left:6px}
+.terminal-body{padding:24px 28px;min-height:260px}
+.t-sender{color:var(--cyan);font-size:11px;letter-spacing:3px;margin-bottom:14px}
+#intro-text{white-space:pre-wrap;font-size:12px;line-height:1.95;color:#9ab8cc;min-height:180px}
+.t-cursor{display:inline-block;width:7px;height:13px;background:var(--cyan);vertical-align:text-bottom;animation:blink .6s step-start infinite}
+#btn-map{display:none;margin:16px 28px 22px;padding:10px 0;width:calc(100% - 56px);background:transparent;border:1px solid var(--cyan);color:var(--cyan);font-family:var(--font);font-size:12px;letter-spacing:3px;cursor:pointer;transition:all .2s}
+#btn-map:hover{background:var(--cyan);color:#000}
+
+/* ══════════ Q1 MAP ══════════ */
+#s-map{z-index:20;background:transparent}
+.map-topbar{position:absolute;top:0;left:0;right:0;height:34px;background:rgba(0,229,255,.07);border-bottom:1px solid rgba(0,229,255,.18);display:flex;align-items:center;justify-content:space-between;padding:0 22px;z-index:50;font-size:10px;letter-spacing:2px;color:var(--cyan)}
+.map-topbar span{color:var(--gold)}
+#galaxy{position:absolute;inset:0}
+#planet-nodes{position:absolute;inset:0}
+#paths-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.planet-wrap{position:absolute;transform:translate(-50%,-50%);cursor:pointer}
+.planet-wrap:hover .planet-orb{filter:brightness(1.25) saturate(1.2)}
+.planet-orb{border-radius:50%;position:relative}
+.planet-orb::after{content:'';position:absolute;top:14%;left:18%;width:28%;height:18%;background:rgba(255,255,255,.22);border-radius:50%;filter:blur(3px)}
+.planet-label{text-align:center;margin-top:9px;font-size:9px;letter-spacing:2px;color:var(--dim);line-height:1.7}
+.planet-label .pname{font-size:11px;font-weight:bold;display:block}
+.p-check{position:absolute;top:-5px;right:-5px;width:19px;height:19px;background:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;box-shadow:0 0 10px var(--green)}
+.ship{position:absolute;font-size:22px;width:30px;height:30px;transform:translate(-50%,-50%);transition:left 1.1s cubic-bezier(.4,0,.2,1),top 1.1s cubic-bezier(.4,0,.2,1);z-index:40;pointer-events:none;filter:drop-shadow(0 0 8px var(--cyan));text-align:center;line-height:30px}
+#map-legend{position:absolute;bottom:18px;left:22px;font-size:9px;color:var(--dim);letter-spacing:1px;line-height:2.1}
+#map-progress{position:absolute;bottom:18px;right:22px;text-align:right}
+.prog-label{font-size:9px;letter-spacing:2px;color:var(--dim);margin-bottom:6px}
+.prog-pips{display:flex;justify-content:flex-end;gap:6px}
+.pip{width:11px;height:11px;border-radius:50%;background:#1a2a3a;border:1px solid #2a3a4a;transition:all .4s}
+.pip.done{box-shadow:0 0 8px currentColor}
+#fly-msg{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;display:none;z-index:60}
+#fly-msg .fly-title{font-size:12px;letter-spacing:3px;color:var(--cyan)}
+#fly-msg .fly-dest{font-size:10px;color:var(--dim);margin-top:6px}
+
+/* ══════════ PLANET VIEW ══════════ */
+#s-planet{z-index:30;background:var(--bg);overflow:hidden}
+#planet-hdr{padding:28px 48px 20px;position:relative;overflow:hidden;flex-shrink:0}
+#planet-hdr::before{content:'';position:absolute;inset:0;background:var(--pcol);opacity:.06;pointer-events:none}
+.ph-glow{position:absolute;right:-50px;top:-50px;width:240px;height:240px;border-radius:50%;background:var(--pcol);opacity:.1;filter:blur(50px);pointer-events:none}
+.ph-badge{display:inline-block;font-size:8px;letter-spacing:3px;color:var(--pcol);border:1px solid var(--pcol);padding:3px 12px;margin-bottom:10px}
+.ph-name{font-family:'Orbitron',sans-serif;font-size:clamp(20px,3.5vw,38px);font-weight:900;color:var(--white);margin-bottom:4px}
+.ph-sub{font-size:10px;color:var(--dim);letter-spacing:2px;margin-bottom:12px}
+.ph-lore{font-size:10.5px;color:var(--dim);line-height:1.9;max-width:640px}
+.ph-div{height:1px;background:var(--pcol);opacity:.25;margin:18px 0 0}
+#planet-scroll{flex:1;overflow-y:auto;padding:18px 48px 28px;display:flex;flex-direction:column;gap:10px}
+#planet-scroll::-webkit-scrollbar{width:3px}
+#planet-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1)}
+.m-item{background:var(--card);border:1px solid rgba(255,255,255,.06);border-left:3px solid var(--pcol);padding:13px 16px;display:flex;gap:13px;position:relative;opacity:0;transform:translateX(-18px);transition:opacity .3s,transform .3s}
+.m-item.vis{opacity:1;transform:translateX(0)}
+.m-num{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;flex-shrink:0;border:1px solid var(--pcol);color:var(--pcol);margin-top:2px}
+.m-body{flex:1}
+.m-title{font-size:11px;font-weight:bold;color:var(--white);margin-bottom:4px;letter-spacing:.4px}
+.m-desc{font-size:9px;color:var(--dim);line-height:1.7}
+.m-live{position:absolute;top:10px;right:12px;font-size:7px;letter-spacing:2px;padding:2px 8px;border:1px solid var(--pcol);color:var(--pcol)}
+.m-check{position:absolute;top:10px;right:80px;color:var(--green);font-size:12px}
+#planet-ftr{padding:14px 48px;border-top:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+#btn-back{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--dim);font-family:var(--font);font-size:11px;letter-spacing:2px;padding:8px 18px;cursor:pointer;transition:all .2s}
+#btn-back:hover{border-color:var(--cyan);color:var(--cyan)}
+.pftr-stat{font-size:9px;color:var(--dim);letter-spacing:2px}
+
+/* ══════════ Q2 WARP SCREEN ══════════ */
+#s-warp{z-index:80;background:#000;justify-content:center;align-items:center;text-align:center}
+.warp-lines{position:absolute;inset:0;overflow:hidden}
+.warp-line{position:absolute;left:50%;top:50%;width:1px;background:linear-gradient(to bottom,transparent,var(--gold));transform-origin:top center;animation:warpShoot 1.2s ease-in forwards}
+@keyframes warpShoot{from{height:0;opacity:1}to{height:120vh;opacity:0}}
+.warp-content{position:relative;z-index:2}
+.warp-badge{font-size:9px;letter-spacing:4px;color:var(--gold);border:1px solid rgba(255,215,0,.4);display:inline-block;padding:4px 16px;margin-bottom:20px;animation:goldFade 1s ease .5s both}
+@keyframes goldFade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.warp-title{font-family:'Orbitron',sans-serif;font-size:clamp(28px,5vw,60px);font-weight:900;color:var(--gold);text-shadow:0 0 40px rgba(255,215,0,.5);margin-bottom:12px;animation:goldFade 1s ease .8s both}
+.warp-sub{font-size:11px;letter-spacing:3px;color:var(--dim);margin-bottom:40px;animation:goldFade 1s ease 1.1s both}
+#btn-warp{background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:var(--font);font-size:13px;letter-spacing:3px;padding:14px 40px;cursor:pointer;transition:all .2s;animation:goldFade 1s ease 1.6s both}
+#btn-warp:hover{background:var(--gold);color:#000}
+
+/* ══════════ Q2 GALAXY MAP ══════════ */
+#s-q2map{z-index:20;background:transparent}
+#q2-galaxy{position:absolute;inset:0}
+#q2-nodes{position:absolute;inset:0}
+#q2-paths-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+/* warm nebula clouds */
+#q2-nebula{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.nebula-cloud{position:absolute;border-radius:50%;filter:blur(80px);opacity:.08}
+/* beacon node */
+.beacon-wrap{position:absolute;transform:translate(-50%,-50%);cursor:pointer;text-align:center}
+.beacon-wrap:hover .beacon-hex{transform:scale(1.15);opacity:1}
+.beacon-hex{width:52px;height:52px;position:relative;margin:0 auto;transition:transform .2s,opacity .2s;opacity:.85}
+.beacon-hex svg{width:100%;height:100%}
+.beacon-label{margin-top:8px;font-size:8px;letter-spacing:2px;color:#a08040;line-height:1.7}
+.beacon-label .bname{font-size:10px;font-weight:bold;color:var(--gold);display:block}
+.beacon-briefed .beacon-hex{opacity:1}
+.beacon-briefed .bname{color:var(--green)}
+#q2-topbar{position:absolute;top:0;left:0;right:0;height:34px;background:rgba(255,215,0,.07);border-bottom:1px solid rgba(255,215,0,.2);display:flex;align-items:center;justify-content:space-between;padding:0 22px;z-index:50;font-size:10px;letter-spacing:2px;color:var(--gold)}
+#q2-topbar span{color:var(--white)}
+#q2-legend{position:absolute;bottom:18px;left:22px;font-size:9px;color:#806030;letter-spacing:1px;line-height:2.1}
+#q2-progress{position:absolute;bottom:18px;right:22px;text-align:right}
+#btn-q2-complete{display:none;margin:8px 0 0;padding:8px 16px;background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:var(--font);font-size:10px;letter-spacing:2px;cursor:pointer;animation:goldPulse 2s ease-in-out infinite;width:100%}
+@keyframes goldPulse{0%,100%{box-shadow:0 0 6px rgba(255,215,0,.2)}50%{box-shadow:0 0 20px rgba(255,215,0,.5)}}
+#btn-q2-complete:hover{background:var(--gold);color:#000}
+#q2ship{position:absolute;font-size:20px;width:28px;height:28px;transform:translate(-50%,-50%);transition:left 1.1s cubic-bezier(.4,0,.2,1),top 1.1s cubic-bezier(.4,0,.2,1);z-index:40;pointer-events:none;filter:drop-shadow(0 0 6px var(--gold));text-align:center;line-height:28px}
+
+/* ══════════ Q2 MISSION DETAIL (OVERLAY) ══════════ */
+#s-q2mission{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.75);display:none;justify-content:center;align-items:center}
+#s-q2mission.active{display:flex}
+.q2m-card{width:min(580px,90vw);background:#080e1a;border:1px solid rgba(255,215,0,.3);box-shadow:0 0 60px rgba(255,215,0,.08);position:relative;animation:missionSlide .35s ease}
+@keyframes missionSlide{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.q2m-head{background:#0a1020;padding:18px 24px;border-bottom:1px solid rgba(255,215,0,.15);display:flex;justify-content:space-between;align-items:center}
+.q2m-beacon{font-size:9px;letter-spacing:3px;color:var(--gold)}
+.q2m-product{font-size:9px;letter-spacing:2px;padding:3px 10px;border:1px solid;display:inline-block}
+.q2m-body{padding:24px}
+.q2m-name{font-family:'Orbitron',sans-serif;font-size:clamp(16px,2.5vw,24px);font-weight:700;color:var(--white);margin-bottom:8px;line-height:1.3}
+.q2m-timing{display:inline-block;font-size:8px;letter-spacing:3px;padding:3px 12px;border:1px solid var(--gold);color:var(--gold);margin-bottom:16px;animation:blink 2s step-start infinite}
+.q2m-section{font-size:8px;letter-spacing:3px;color:var(--dim);margin-bottom:6px}
+.q2m-text{font-size:10px;color:#9ab8cc;line-height:1.8;margin-bottom:18px}
+.q2m-detail{font-size:10px;color:var(--dim);line-height:1.8;padding:12px;background:rgba(255,215,0,.04);border-left:2px solid rgba(255,215,0,.3)}
+.q2m-foot{padding:16px 24px;border-top:1px solid rgba(255,215,0,.1);display:flex;justify-content:space-between;align-items:center}
+#btn-q2m-close{background:transparent;border:1px solid rgba(255,255,255,.15);color:var(--dim);font-family:var(--font);font-size:10px;letter-spacing:2px;padding:8px 18px;cursor:pointer;transition:all .2s}
+#btn-q2m-close:hover{border-color:var(--dim);color:var(--white)}
+#btn-q2m-confirm{background:var(--gold);border:1px solid var(--gold);color:#000;font-family:var(--font);font-size:10px;letter-spacing:2px;padding:8px 22px;cursor:pointer;font-weight:bold;transition:all .2s}
+#btn-q2m-confirm:hover{background:#e6c200}
+#btn-q2m-confirm:disabled{background:transparent;color:var(--green);border-color:var(--green);cursor:default}
+
+/* ══════════ Q2 COMPLETE ══════════ */
+#s-q2complete{z-index:90;background:#000;justify-content:center;align-items:center;text-align:center}
+.q2c-wrap{width:min(640px,90vw)}
+.q2c-icon{font-size:64px;margin-bottom:24px;animation:iconPop .6s ease .3s both}
+@keyframes iconPop{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:scale(1)}}
+.q2c-badge{font-size:9px;letter-spacing:4px;color:var(--gold);border:1px solid rgba(255,215,0,.4);display:inline-block;padding:4px 16px;margin-bottom:16px}
+.q2c-title{font-family:'Orbitron',sans-serif;font-size:clamp(24px,4vw,48px);font-weight:900;color:var(--gold);text-shadow:0 0 40px rgba(255,215,0,.4);margin-bottom:12px}
+.q2c-sub{font-size:12px;letter-spacing:3px;color:var(--dim);margin-bottom:32px}
+.q2c-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:36px}
+.q2c-stat{background:#0a1020;border:1px solid rgba(255,215,0,.15);padding:16px 10px}
+.q2c-stat-val{font-family:'Orbitron',sans-serif;font-size:28px;font-weight:900;color:var(--gold);line-height:1}
+.q2c-stat-label{font-size:8px;letter-spacing:2px;color:var(--dim);margin-top:4px}
+.q2c-tagline{font-size:11px;letter-spacing:2px;color:var(--dim);padding:14px;border:1px solid rgba(255,215,0,.15);background:rgba(255,215,0,.03);margin-bottom:28px}
+#btn-restart{background:transparent;border:1px solid var(--cyan);color:var(--cyan);font-family:var(--font);font-size:11px;letter-spacing:2px;padding:10px 28px;cursor:pointer;transition:all .2s}
+#btn-restart:hover{background:var(--cyan);color:#000}
+</style>
+</head>
+<body>
+
+<div id="stars"></div>
+<div id="stars2"></div>
+<div id="flash"></div>
+
+<!-- ══ BOOT ══ -->
+<div class="screen" id="s-boot" style="background:#000;justify-content:center;align-items:center;z-index:100">
+  <div class="boot-wrap">
+    <div class="boot-logo">◈ SOLV MISSION CONTROL</div>
+    <div id="boot-lines"></div>
+    <div class="boot-bar-wrap"><div class="boot-bar" id="boot-bar"></div></div>
+    <div class="boot-pct" id="boot-pct">0%</div>
+  </div>
+</div>
+
+<!-- ══ INTRO ══ -->
+<div class="screen" id="s-intro">
+  <div style="margin:auto;position:relative;z-index:2">
+    <div class="terminal">
+      <div class="terminal-head">
+        <div class="tc" style="background:#FF3860"></div>
+        <div class="tc" style="background:#FFD700"></div>
+        <div class="tc" style="background:#00F5A0"></div>
+        <div class="terminal-ttl">SECURE UPLINK :: PARTNERSHIP SERVICES COMMAND → SOLV SECTOR</div>
+      </div>
+      <div class="terminal-body">
+        <div class="t-sender">[ INCOMING TRANSMISSION — ENCRYPTED ]</div>
+        <div id="intro-text"></div><span class="t-cursor" id="t-cursor"></span>
+      </div>
+      <button id="btn-map">▸ &nbsp; ACCESS GALAXY MAP</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Q1 GALAXY MAP ══ -->
+<div class="screen" id="s-map">
+  <div class="map-topbar">
+    <div>MISSION CONTROL &nbsp;·&nbsp; SOLV SECTOR &nbsp;·&nbsp; Q1 GALAXY</div>
+    <div>PLANETS EXPLORED: <span id="explored-count">0</span>/4</div>
+  </div>
+  <div id="galaxy">
+    <svg id="paths-svg"></svg>
+    <div class="ship" id="ship">🚀</div>
+    <div id="planet-nodes"></div>
+  </div>
+  <div id="map-legend">
+    CLICK a planet or use ARROW KEYS<br>
+    Explore all 4 planets to unlock Q2
+  </div>
+  <div id="map-progress">
+    <div class="prog-label">MISSION PROGRESS</div>
+    <div class="prog-pips" id="prog-pips"></div>
+  </div>
+  <div id="fly-msg"><div class="fly-title">✦ PLOTTING COURSE ✦</div><div class="fly-dest" id="fly-dest"></div></div>
+</div>
+
+<!-- ══ PLANET VIEW ══ -->
+<div class="screen" id="s-planet">
+  <div id="planet-hdr">
+    <div class="ph-glow"></div>
+    <div class="ph-badge" id="ph-badge"></div>
+    <div class="ph-name" id="ph-name"></div>
+    <div class="ph-sub" id="ph-sub"></div>
+    <div class="ph-lore" id="ph-lore"></div>
+    <div class="ph-div"></div>
+  </div>
+  <div id="planet-scroll"></div>
+  <div id="planet-ftr">
+    <button id="btn-back" onclick="returnToMap()">◄ RETURN TO MAP</button>
+    <div class="pftr-stat" id="pftr-stat"></div>
+  </div>
+</div>
+
+<!-- ══ Q2 WARP TRANSITION ══ -->
+<div class="screen" id="s-warp">
+  <div class="warp-lines" id="warp-lines"></div>
+  <div class="warp-content">
+    <div class="warp-badge">Q1 SECTOR — FULLY EXPLORED</div>
+    <div class="warp-title">Q2 SECTOR<br>UNLOCKED</div>
+    <div class="warp-sub">11 MISSIONS QUEUED &nbsp;·&nbsp; INITIATING WARP SEQUENCE</div>
+    <button id="btn-warp" onclick="enterQ2()">▸ &nbsp; ENTER Q2 SECTOR</button>
+  </div>
+</div>
+
+<!-- ══ Q2 GALAXY MAP ══ -->
+<div class="screen" id="s-q2map">
+  <div id="q2-topbar">
+    <div>Q2 SECTOR &nbsp;·&nbsp; MISSION BEACONS &nbsp;·&nbsp; STARDATE 2026.Q2</div>
+    <div>MISSIONS BRIEFED: <span id="briefed-count">0</span>/11</div>
+  </div>
+  <div id="q2-galaxy">
+    <div id="q2-nebula"></div>
+    <svg id="q2-paths-svg"></svg>
+    <div class="ship" id="q2ship">🚀</div>
+    <div id="q2-nodes"></div>
+  </div>
+  <div id="q2-legend">
+    CLICK a mission beacon to receive briefing<br>
+    Brief all 11 missions to complete Q2
+  </div>
+  <div id="q2-progress">
+    <div class="prog-label" style="color:#806030">BEACONS BRIEFED</div>
+    <div class="prog-pips" id="q2-pips" style="justify-content:flex-end"></div>
+    <button id="btn-q2-complete" onclick="showQ2Complete()">◈ &nbsp;LAUNCH SEQUENCE INITIATED</button>
+  </div>
+</div>
+
+<!-- ══ Q2 MISSION DETAIL (overlay) ══ -->
+<div id="s-q2mission">
+  <div class="q2m-card">
+    <div class="q2m-head">
+      <div class="q2m-beacon" id="q2m-beacon">BEACON ALPHA</div>
+      <div class="q2m-product" id="q2m-product">CLEARPAY</div>
+    </div>
+    <div class="q2m-body">
+      <div class="q2m-name" id="q2m-name"></div>
+      <div class="q2m-timing" id="q2m-timing"></div>
+      <div class="q2m-section">MISSION OBJECTIVE</div>
+      <div class="q2m-text" id="q2m-obj"></div>
+      <div class="q2m-section">MISSION INTEL</div>
+      <div class="q2m-detail" id="q2m-detail"></div>
+    </div>
+    <div class="q2m-foot">
+      <button id="btn-q2m-close" onclick="closeQ2Mission()">✕ CLOSE</button>
+      <button id="btn-q2m-confirm" onclick="confirmMission()">CONFIRM MISSION BRIEF ▸</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Q2 COMPLETE ══ -->
+<div class="screen" id="s-q2complete">
+  <div class="q2c-wrap" style="position:relative;z-index:2">
+    <div class="q2c-icon">🎖️</div>
+    <div class="q2c-badge">MISSION ACCOMPLISHED</div>
+    <div class="q2c-title">Q2 LAUNCH<br>SEQUENCE INITIATED</div>
+    <div class="q2c-sub">ALL SECTORS BRIEFED &nbsp;·&nbsp; SOLV COMMAND STANDING BY</div>
+    <div class="q2c-stats">
+      <div class="q2c-stat"><div class="q2c-stat-val">20+</div><div class="q2c-stat-label">Q1 FEATURES SHIPPED</div></div>
+      <div class="q2c-stat"><div class="q2c-stat-val">8</div><div class="q2c-stat-label">Q2 MISSIONS LAUNCHING</div></div>
+      <div class="q2c-stat"><div class="q2c-stat-val">∞</div><div class="q2c-stat-label">PATIENT LIVES IMPROVED</div></div>
+    </div>
+    <div class="q2c-tagline">HOW CAN WE MAKE IT EASY TO USE SOLV PRODUCTS WELL EVERY TIME?</div>
+    <button id="btn-restart" onclick="restart()">◄ REPLAY MISSION</button>
+  </div>
+</div>
+
+<script>
+// ═══════ PLANET DATA ════════════════════════════════════════════
+const PLANETS = {
+  core: {
+    id:'core', name:'PLANET CORE', sub:'The Infrastructure World', col:'#FF6B35',
+    x:22, y:22,
+    lore:'Home to 250M daily active operators. CORE governs the administrative backbone of the Solv sector — navigation, scheduling, the inbox, the login portal. Every partner civilization runs their day from here.',
+    q1:[
+      {n:1,title:'New Nav + Group Switch',desc:'Rebuilt top-level nav with instant group switching. No page reloads for partners with 50+ locations. Most-used surface in Manage.',live:'JAN 2026'},
+      {n:2,title:'Scheduling Enhancements (VTS)',desc:'Capacity controls, EOD views, % slot allocation per visit type. Partners manage appointment mix without manually blocking slots.',live:'JAN 2026'},
+      {n:3,title:'Return Patient Paperwork',desc:'Returning patients skip already-completed fields. Cuts check-in time 40–60%. Front desk no longer explains why patients re-enter data.',live:'JAN 2026'},
+      {n:4,title:'Inbox UX + Permissions',desc:'Manager vs. non-manager free-text controls. Major UX & performance overhaul. Maya call + case visibility added.',live:'MAR 2026'},
+      {n:5,title:'Manage Login UI Refresh',desc:'Clean modern login page. Part of broader permissions refactor. Standard-setter for the Manage redesign wave.',live:'MAR 2026'},
+      {n:6,title:'Pharmacy Integration (eCW)',desc:'Integrated eClinicalWorks pharmacy data into the Solv workflow. Expands the partner ecosystem with eCW-connected practices.',live:'SHIPPED'},
+    ]
+  },
+  pay: {
+    id:'pay', name:'PLANET PAY', sub:'The Commerce World', col:'#FF3860',
+    x:76, y:18,
+    lore:'Revenue processed: billions of healthcare transactions annually. PAY governs all financial interactions in the Solv sector — surcharges, payment plans, messaging, reconciliation. Without PAY, the sector cannot sustain itself.',
+    q1:[
+      {n:1,title:'Surcharges + Auto-Detection',desc:'Stripe auto-detects card type at tap/swipe. Correct surcharge applied without patient selection. Removes the #1 blocker to surcharge adoption.',live:'FEB 2026'},
+      {n:2,title:'Custom Payment Plans',desc:'Partners define installments, frequency, duration. Patients see a structured plan instead of a lump sum. Reduces abandonment on high-balance invoices.',live:'MAR 2026'},
+      {n:3,title:'Pay Messaging Overhaul',desc:'Reminder pause (90 days), auto-collect max, custom cadence/duration, invoice-specific controls — all shipped together.',live:'FEB 2026'},
+      {n:4,title:'Embedded Reports + Email',desc:'Pay reports live inside Manage. Auto-email reconciliation reports on schedule. Eliminates the monthly manual export workflow.',live:'MAR 2026'},
+      {n:5,title:'SFTP & Itemized Experity Pay',desc:'Itemized invoice import via SFTP with full payment posting reconciliation. Unlocked ConvenientMD post-visit billing.',live:'FEB 2026'},
+    ]
+  },
+  clearpay: {
+    id:'clearpay', name:'PLANET CLEARPAY', sub:'The Clarity World', col:'#00F5A0',
+    x:20, y:67,
+    lore:'Transparency index: 94% of patients now receive real-time cost estimates. CLEARPAY ensures no patient is surprised by what they owe. Standalone deployment live — no full Pay migration required.',
+    q1:[
+      {n:1,title:'ClearPay Standalone',desc:'Real-time estimates & POS collection without migrating to Solv Pay. Uses existing processor. Health First & Mederi first live.',live:'FEB 2026'},
+      {n:2,title:'New ClearPay UI',desc:'Redesigned charge tab: simpler workflow, clearer estimates, fewer clicks. Piloting with ExperCare. Early data shows charge rate lift.',live:'MAR 30'},
+      {n:3,title:'INN/OON Insurance Detection',desc:'Identifies in-network vs out-of-network at check-in and applies correct fee schedule. Eliminates manual OON lookups.',live:'CITYDOC'},
+      {n:4,title:'Secondary/Tertiary Insurance',desc:'ClearPay now supports secondary and tertiary insurance layers. Broader coverage configurations unlocked across partner locations.',live:'SHIPPED'},
+    ]
+  },
+  maya: {
+    id:'maya', name:'PLANET MAYA', sub:'The Intelligence World', col:'#A855F7',
+    x:78, y:64,
+    lore:'AI call resolution rate: climbing toward 50%. MAYA is the most advanced AI civilization in the Solv sector. Multi-agent architecture deployed. Maya speaks, listens, manages cases — and now she collects payment over the phone.',
+    q1:[
+      {n:1,title:'Multi-Agent Architecture',desc:'Maya can now run multiple parallel conversations. The foundation for all future Maya scaling and concurrent call handling.',live:'SHIPPED'},
+      {n:2,title:'Maya Calls & Cases in Inbox',desc:'Maya call records and async cases surface in provider Inbox. Full visibility: transcripts + outcomes in one place.',live:'MAR 30'},
+      {n:3,title:'Maya Accepts Payments',desc:'Processes patient payments by phone — POS charges, balances, copays. Turns Maya into a revenue-generating touchpoint.',live:'LIVE'},
+      {n:4,title:'Maya Shares Wait Time',desc:'Reads real-time wait data and shares with callers. Reduces the most common front-desk call volume.',live:'IN DEV'},
+    ]
+  }
+};
+
+// ═══════ Q2 MISSION BEACONS ═════════════════════════════════════
+const Q2_MISSIONS = [
+  {id:'b1',beacon:'ALPHA',name:'ClearPay Estimate Usage',product:'CLEARPAY',col:'#00F5A0',x:14,y:22,timing:'Q2',
+   obj:'2025 cohort target: 50% · 2026 cohort target: 70%. Track and optimize estimate adoption across all groups.',
+   detail:'Key health metric for ClearPay. Drives charge rate improvement and partner value demonstration.'},
+  {id:'b2',beacon:'BETA',name:'50% Maya Resolution Rate',product:'MAYA',col:'#A855F7',x:72,y:18,timing:'Q2',
+   obj:'Core Maya, prompts, billing use cases, wait time, data gaps. Track patient sentiment throughout.',
+   detail:'Move the resolution needle to 50%. Multi-agent architecture is the foundation — now execute on the use cases.'},
+  {id:'b3',beacon:'GAMMA',name:'Athena Insurance Match/Transfer',product:'CORE',col:'#00E5FF',x:42,y:14,timing:'MAY',
+   obj:'Extend insurance selection and transfer capabilities to Athena EMR partners.',
+   detail:'Foundation for broader insurance match capabilities across EMR integrations. Unlocks new partner use cases.'},
+  {id:'b4',beacon:'DELTA',name:'Productize Insurance Ops',product:'CORE',col:'#00E5FF',x:82,y:46,timing:'Q2',
+   obj:'Self-serve tooling for PPOPs to manage insurance mapping and config independently.',
+   detail:'No more tickets for insurance configuration. PPOPs own it. Scales without additional overhead.'},
+  {id:'b5',beacon:'EPSILON',name:'Partner ClearPay Observatory',product:'CLEARPAY',col:'#00F5A0',x:22,y:60,timing:'IN PROGRESS',
+   obj:'Self-serve KPI dashboard: collections vs. expected, estimate accuracy, POS collection rates, trends.',
+   detail:'NextCare currently receiving scheduled Looker reports as interim. Productized version in progress.'},
+  {id:'b6',beacon:'ZETA',name:'Flag Missing Primary Insurance',product:'CLEARPAY',col:'#FF6B35',x:58,y:70,timing:'APRIL',
+   obj:'Surface missing primary insurance at booking. Feature in dev, release guide drafted.',
+   detail:'Catches coordination of benefits gaps before the visit. Reduces downstream claim denials. Not full COB.'},
+  {id:'b7',beacon:'ETA',name:'Visit Type Based Consents',product:'CORE',col:'#FF6B35',x:18,y:78,timing:'MID-MAY',
+   obj:'Configure consent forms tied to specific visit types so patients only see relevant consents.',
+   detail:'Reduces paperwork friction and ensures compliance at the visit-type level. Partners have been asking for this.'},
+  {id:'b8',beacon:'THETA',name:'Integration Configuration Agent',product:'MAYA',col:'#A855F7',x:66,y:38,timing:'APRIL',
+   obj:'In-product AI agent to automate Athena setup end-to-end.',
+   detail:'Integrations team is building this. Removes manual configuration work from the implementation process.'},
+  {id:'b9',beacon:'IOTA',name:'Queue 2.0',product:'CORE',col:'#00E5FF',x:44,y:52,timing:'Q2',
+   obj:'Ground-up redesign of the patient queue in Manage — the central workspace partners live in all day.',
+   detail:'Rebuilds the data model, improves real-time updates, and introduces workflow capabilities impossible on the old architecture. Unlocks Manage settings overhaul, emergent patient flags, and consent form separation. Sets the foundation for every future workflow improvement.'},
+  {id:'b10',beacon:'KAPPA',name:'Patient Page Overhaul',product:'CORE',col:'#00E5FF',x:34,y:36,timing:'Q2',
+   obj:'Redesigned patient record: improved search performance, cleaner layout, and better data density.',
+   detail:'Eliminates long load times and confusing navigation on the patient page. Finding the details needed will be fast and straightforward.'},
+  {id:'b11',beacon:'LAMBDA',name:'Voice & Accent Customization',product:'MAYA',col:'#A855F7',x:84,y:62,timing:'Q2',
+   obj:'Customize Maya\'s voice and accent to better match partner brand and patient expectations.',
+   detail:'Gives partners control over how Maya sounds on the phone. Improves patient experience and call engagement across diverse patient populations.'},
+];
+
+const INTRO_TEXT = `Commander. Welcome back from cryo sleep.
+
+Six months ago, we dispatched our teams to four planetary systems in the Solv sector. Their mission: modernize healthcare infrastructure across every planet.
+
+I'm pleased to report — Q1 was a success.
+
+  • 20+ features deployed across all planets
+  • 10+ new partner civilizations brought online
+  • ~140 incremental life-events processed per day
+  • 6 insurance engine upgrades completed
+
+But the work isn't done.
+
+Eleven new missions are queued for Q2. Our crews are standing by — but first, you must review what was accomplished on each planet.
+
+Navigate to all four planets, Commander. Debrief the Q1 missions. Then — the Q2 sector will unlock.
+
+The galaxy is counting on us.
+
+— Partnership Services Command`;
+
+// ═══════ GAME STATE ═══════════════════════════════════════════
+const G = { explored: new Set(), briefed: new Set(), flying: false, shipPos:{x:50,y:78}, q2shipPos:{x:50,y:80}, currentMission:null };
+let audioCtx;
+function ac(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+function beep(f,d,t='square',v=.07){try{const c=ac(),g=c.createGain(),o=c.createOscillator();o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+d);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+d);}catch(e){}}
+function sndBoot(){[220,330,440,660].forEach((f,i)=>setTimeout(()=>beep(f,.12,'sine',.05),i*70));}
+function sndClick(){beep(880,.07,'square',.04);}
+function sndWhoosh(){beep(180,.4,'sawtooth',.05);setTimeout(()=>beep(380,.2,'sine',.04),200);}
+function sndLand(){[440,550,660].forEach((f,i)=>setTimeout(()=>beep(f,.18,'sine',.07),i*110));}
+function sndUnlock(){[330,440,550,660,880].forEach((f,i)=>setTimeout(()=>beep(f,.15,'sine',.08),i*90));}
+function sndWarp(){[200,300,500,800,1200].forEach((f,i)=>setTimeout(()=>beep(f,.2,'sine',.06),i*120));}
+function sndGold(){[440,554,659,880].forEach((f,i)=>setTimeout(()=>beep(f,.2,'triangle',.07),i*80));}
+
+// ═══════ STARS ════════════════════════════════════════════════
+(function(){
+  function mkStars(containerId, count, seed, warm){
+    const el=document.getElementById(containerId);
+    let s=seed;
+    function r(){s=(s*1664525+1013904223)&0x7fffffff;return s/0x7fffffff;}
+    for(let i=0;i<count;i++){
+      const d=document.createElement('div');
+      d.className=warm?'star2':'star';
+      const sz=r()<.6?1:r()<.85?2:3;
+      const col=warm?`hsl(${40+r()*20},${60+r()*40}%,${70+r()*30}%)`:'#ffffff';
+      d.style.cssText=`left:${r()*100}%;top:${r()*100}%;width:${sz}px;height:${sz}px;background:${col};--lo:${(.08+r()*.2).toFixed(2)};--hi:${(.5+r()*.5).toFixed(2)};--d:${(2+r()*5).toFixed(1)}s;animation-delay:${(r()*5).toFixed(1)}s`;
+      el.appendChild(d);
+    }
+  }
+  mkStars('stars',200,42,false);
+  mkStars('stars2',200,99,true);
+})();
+
+// ═══════ SCREEN TRANSITION ════════════════════════════════════
+function flash(col,cb){
+  const f=document.getElementById('flash');
+  f.style.background=col||'rgba(0,229,255,.2)';f.style.opacity='1';
+  setTimeout(()=>{if(cb)cb();f.style.opacity='0';},160);
+}
+function showScreen(id,col){
+  flash(col||'rgba(0,229,255,.15)',()=>{
+    document.querySelectorAll('.screen').forEach(s=>{s.classList.remove('active');s.style.display='';});
+    const el=document.getElementById(id);el.style.display='';el.classList.add('active');
+  });
+}
+
+// ═══════ BOOT ═════════════════════════════════════════════════
+const BOOT_LINES=['INITIALIZING SOLV MISSION CONTROL v4.2.1...','LOADING PLANETARY DATABASE... OK','DECRYPTING Q1 MISSION LOGS... OK','SCANNING SOLV SECTOR... 4 PLANETS DETECTED','CALIBRATING STELLAR COORDINATES... OK','UPLINK TO PARTNERSHIP SERVICES COMMAND... ESTABLISHED','SYNCING Q1 DATA... 20+ ENTRIES FOUND','Q2 SECTOR... LOCKED PENDING Q1 CLEARANCE','CRYO REVIVAL SEQUENCE... COMPLETE','WELCOME BACK, COMMANDER.'];
+function startBoot(){
+  document.getElementById('s-boot').classList.add('active');
+  sndBoot();
+  const wrap=document.getElementById('boot-lines'),bar=document.getElementById('boot-bar'),pct=document.getElementById('boot-pct');
+  let i=0;
+  (function next(){
+    if(i>=BOOT_LINES.length){setTimeout(startIntro,700);return;}
+    const d=document.createElement('div');d.className='boot-line';d.textContent='> '+BOOT_LINES[i];wrap.appendChild(d);
+    const p=Math.round((i+1)/BOOT_LINES.length*100);bar.style.width=p+'%';pct.textContent=p+'%';
+    beep(180+i*25,.04,'square',.03);i++;setTimeout(next,180+Math.random()*130);
+  })();
+}
+
+// ═══════ INTRO ════════════════════════════════════════════════
+function startIntro(){
+  showScreen('s-intro','rgba(0,245,160,.15)');
+  const el=document.getElementById('intro-text'),cur=document.getElementById('t-cursor'),btn=document.getElementById('btn-map');
+  let i=0;
+  (function type(){
+    if(i>=INTRO_TEXT.length){cur.style.display='none';btn.style.display='block';return;}
+    const ch=INTRO_TEXT[i];el.textContent+=ch;i++;
+    setTimeout(type,ch==='\n'?70:ch==='.'?110:ch===','?55:16);
+  })();
+  btn.onclick=()=>{sndClick();buildQ1Map();showScreen('s-map');};
+}
+
+// ═══════ Q1 GALAXY MAP ════════════════════════════════════════
+function lighten(h){const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return`rgb(${Math.min(255,r+70)},${Math.min(255,g+70)},${Math.min(255,b+70)})`;}
+function darken(h){const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return`rgb(${Math.round(r*.25)},${Math.round(g*.25)},${Math.round(b*.25)})`;}
+
+function buildQ1Map(){
+  const nodes=document.getElementById('planet-nodes'),svg=document.getElementById('paths-svg');
+  nodes.innerHTML='';svg.innerHTML='';
+  const home={x:50,y:78};
+  // home base circle
+  const hc=document.createElementNS('http://www.w3.org/2000/svg','circle');
+  hc.setAttribute('cx',home.x+'%');hc.setAttribute('cy',home.y+'%');hc.setAttribute('r','8');
+  hc.setAttribute('fill','rgba(0,229,255,.12)');hc.setAttribute('stroke','#00E5FF');hc.setAttribute('stroke-width','1.5');
+  svg.appendChild(hc);
+  const ht=document.createElementNS('http://www.w3.org/2000/svg','text');
+  ht.setAttribute('x',home.x+'%');ht.setAttribute('y',(home.y+4.2)+'%');
+  ht.setAttribute('text-anchor','middle');ht.setAttribute('fill','#00E5FF');ht.setAttribute('font-size','9');
+  ht.setAttribute('font-family','monospace');ht.setAttribute('letter-spacing','2');ht.textContent='HOME BASE';
+  svg.appendChild(ht);
+  Object.values(PLANETS).forEach(p=>{
+    const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',home.x+'%');l.setAttribute('y1',home.y+'%');
+    l.setAttribute('x2',p.x+'%');l.setAttribute('y2',p.y+'%');
+    l.setAttribute('stroke',p.col);l.setAttribute('stroke-width','1');
+    l.setAttribute('stroke-opacity','.18');l.setAttribute('stroke-dasharray','5 7');
+    svg.appendChild(l);
+    const exp=G.explored.has(p.id);
+    const wrap=document.createElement('div');
+    wrap.className='planet-wrap';wrap.id='pw-'+p.id;
+    wrap.style.left=p.x+'%';wrap.style.top=p.y+'%';
+    wrap.innerHTML=`
+      <div class="planet-orb" style="width:70px;height:70px;
+        background:radial-gradient(circle at 38% 32%,${lighten(p.col)},${darken(p.col)});
+        box-shadow:0 0 ${exp?28:14}px ${p.col}${exp?'99':'44'}">
+        ${exp?'<div class="p-check">✓</div>':''}
+      </div>
+      <div class="planet-label" style="${exp?'color:'+p.col:''}">
+        <span class="pname">${p.name.replace('PLANET ','')}</span>
+        ${exp?'● EXPLORED':'○ UNEXPLORED'}
+      </div>`;
+    wrap.addEventListener('click',()=>{if(!G.flying){sndClick();flyToQ1Planet(p.id);}});
+    nodes.appendChild(wrap);
+  });
+  const ship=document.getElementById('ship');
+  ship.style.left=G.shipPos.x+'%';ship.style.top=G.shipPos.y+'%';
+  updateQ1Progress();
+}
+
+function updateQ1Progress(){
+  document.getElementById('explored-count').textContent=G.explored.size;
+  const pips=document.getElementById('prog-pips');
+  pips.innerHTML=Object.values(PLANETS).map(p=>{
+    const done=G.explored.has(p.id);
+    return `<div class="pip${done?' done':''}" style="${done?'background:'+p.col+';border-color:'+p.col+';box-shadow:0 0 8px '+p.col:''}"></div>`;
+  }).join('');
+}
+
+function flyToQ1Planet(id){
+  const p=PLANETS[id];G.flying=true;
+  const msg=document.getElementById('fly-msg'),dest=document.getElementById('fly-dest');
+  dest.textContent='→ '+p.name;msg.style.display='block';
+  const ship=document.getElementById('ship');
+  ship.style.left=p.x+'%';ship.style.top=p.y+'%';
+  G.shipPos={x:p.x,y:p.y};sndWhoosh();
+  setTimeout(()=>{msg.style.display='none';G.flying=false;openPlanet(id);},1200);
+}
+
+function openPlanet(id){
+  const p=PLANETS[id];G.explored.add(id);
+  document.documentElement.style.setProperty('--pcol',p.col);
+  document.getElementById('ph-badge').textContent=p.name;
+  document.getElementById('ph-badge').style.color=p.col;
+  document.getElementById('ph-badge').style.borderColor=p.col;
+  document.getElementById('ph-name').textContent=p.name;
+  document.getElementById('ph-sub').textContent=p.sub;
+  document.getElementById('ph-lore').textContent=p.lore;
+  document.querySelector('.ph-glow').style.background=p.col;
+  document.querySelector('.ph-div').style.background=p.col;
+  document.getElementById('pftr-stat').textContent=`Q1 MISSIONS COMPLETE: ${p.q1.length}`;
+  const scroll=document.getElementById('planet-scroll');scroll.innerHTML='';
+  p.q1.forEach((m,i)=>{
+    const d=document.createElement('div');d.className='m-item';
+    d.innerHTML=`
+      <div class="m-num">${m.n}</div>
+      <div class="m-body"><div class="m-title">${m.title}</div><div class="m-desc">${m.desc}</div></div>
+      <div class="m-check">✓</div>
+      <div class="m-live">${m.live}</div>`;
+    scroll.appendChild(d);
+    setTimeout(()=>d.classList.add('vis'),60+i*80);
+  });
+  showScreen('s-planet','rgba(0,0,0,.6)');sndLand();
+}
+
+function returnToMap(){
+  sndClick();
+  buildQ1Map();
+  showScreen('s-map','rgba(0,0,0,.5)');
+  if(G.explored.size>=4&&!G._warpShown){G._warpShown=true;setTimeout(triggerWarp,800);}
+}
+
+// ═══════ Q2 WARP SEQUENCE ═════════════════════════════════════
+function triggerWarp(){
+  sndUnlock();
+  // build warp lines
+  const wrap=document.getElementById('warp-lines');wrap.innerHTML='';
+  for(let i=0;i<40;i++){
+    const l=document.createElement('div');l.className='warp-line';
+    const angle=(i/40)*360;
+    l.style.cssText=`transform:rotate(${angle}deg);animation-delay:${(i*.03).toFixed(2)}s;animation-duration:${(.8+Math.random()*.6).toFixed(1)}s;opacity:${.4+Math.random()*.6}`;
+    wrap.appendChild(l);
+  }
+  showScreen('s-warp','rgba(255,215,0,.2)');
+  sndWarp();
+}
+
+function enterQ2(){
+  sndClick();
+  document.getElementById('stars').style.display='none';
+  document.getElementById('stars2').classList.add('active');
+  buildQ2Map();
+  showScreen('s-q2map','rgba(255,215,0,.25)');
+  sndGold();
+}
+
+// ═══════ Q2 GALAXY MAP ════════════════════════════════════════
+function buildQ2Map(){
+  const nodes=document.getElementById('q2-nodes'),svg=document.getElementById('q2-paths-svg');
+  const nebula=document.getElementById('q2-nebula');
+  nodes.innerHTML='';svg.innerHTML='';
+
+  // nebula clouds
+  nebula.innerHTML='';
+  [{x:20,y:30,w:300,col:'#FF8C00'},{x:60,y:20,w:250,col:'#FFD700'},{x:40,y:65,w:350,col:'#FF6B35'},{x:75,y:60,w:280,col:'#FFB800'}].forEach(n=>{
+    const d=document.createElement('div');d.className='nebula-cloud';
+    d.style.cssText=`left:${n.x}%;top:${n.y}%;width:${n.w}px;height:${n.w}px;background:${n.col};margin-left:-${n.w/2}px;margin-top:-${n.w/2}px`;
+    nebula.appendChild(d);
+  });
+
+  // home base
+  const home={x:50,y:82};
+  const hc=document.createElementNS('http://www.w3.org/2000/svg','circle');
+  hc.setAttribute('cx',home.x+'%');hc.setAttribute('cy',home.y+'%');hc.setAttribute('r','6');
+  hc.setAttribute('fill','rgba(255,215,0,.12)');hc.setAttribute('stroke','#FFD700');hc.setAttribute('stroke-width','1.5');
+  svg.appendChild(hc);
+
+  Q2_MISSIONS.forEach((m,mi)=>{
+    const briefed=G.briefed.has(m.id);
+    // path from home
+    const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',home.x+'%');l.setAttribute('y1',home.y+'%');
+    l.setAttribute('x2',m.x+'%');l.setAttribute('y2',m.y+'%');
+    l.setAttribute('stroke',m.col);l.setAttribute('stroke-width','1');
+    l.setAttribute('stroke-opacity',briefed?'.4':'.14');l.setAttribute('stroke-dasharray','4 6');
+    svg.appendChild(l);
+    // beacon node
+    const wrap=document.createElement('div');
+    wrap.className='beacon-wrap'+(briefed?' beacon-briefed':'');
+    wrap.id='bw-'+m.id;wrap.style.left=m.x+'%';wrap.style.top=m.y+'%';
+    const pulseAnim=briefed?'':'animation:beaconPulse 2s ease-in-out infinite';
+    wrap.innerHTML=`
+      <div class="beacon-hex">
+        <svg viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="26,2 48,14 48,38 26,50 4,38 4,14" fill="${briefed?'rgba(0,245,160,.12)':'rgba(255,215,0,.07)'}" stroke="${briefed?'#00F5A0':m.col}" stroke-width="1.5" style="${pulseAnim}"/>
+          ${briefed?'<text x="26" y="32" text-anchor="middle" fill="#00F5A0" font-size="18">✓</text>':`<text x="26" y="30" text-anchor="middle" fill="${m.col}" font-size="8" font-family="monospace" letter-spacing="1">${m.beacon}</text>`}
+        </svg>
+      </div>
+      <div class="beacon-label">
+        <span class="bname">${m.name}</span>
+        ${briefed?'<span style="color:var(--green)">● BRIEFED</span>':'<span style="color:#806030">○ PENDING</span>'}
+      </div>`;
+    wrap.addEventListener('click',()=>{if(!G.flying){sndClick();flyToBeacon(m.id);}});
+    nodes.appendChild(wrap);
+  });
+
+  const ship=document.getElementById('q2ship');
+  ship.style.left=G.q2shipPos.x+'%';ship.style.top=G.q2shipPos.y+'%';
+  updateQ2Progress();
+}
+
+// inject beacon pulse keyframe once
+const beaconStyle=document.createElement('style');
+beaconStyle.textContent='@keyframes beaconPulse{0%,100%{filter:drop-shadow(0 0 4px #FFD700)}50%{filter:drop-shadow(0 0 14px #FFD700)}}';
+document.head.appendChild(beaconStyle);
+
+function updateQ2Progress(){
+  const n=G.briefed.size;
+  document.getElementById('briefed-count').textContent=n;
+  const pips=document.getElementById('q2-pips');
+  pips.innerHTML=Q2_MISSIONS.map(m=>{
+    const done=G.briefed.has(m.id);
+    return `<div class="pip${done?' done':''}" style="${done?'background:'+m.col+';border-color:'+m.col+';box-shadow:0 0 6px '+m.col:'border-color:#403010'}"></div>`;
+  }).join('');
+  if(n>=11){document.getElementById('btn-q2-complete').style.display='block';sndUnlock();}
+}
+
+function flyToBeacon(id){
+  const m=Q2_MISSIONS.find(x=>x.id===id);
+  G.flying=true;sndWhoosh();
+  const ship=document.getElementById('q2ship');
+  ship.style.left=m.x+'%';ship.style.top=m.y+'%';
+  G.q2shipPos={x:m.x,y:m.y};
+  setTimeout(()=>{G.flying=false;openQ2Mission(id);},1200);
+}
+
+// ═══════ Q2 MISSION DETAIL ════════════════════════════════════
+let _confirmingId=null;
+function openQ2Mission(id){
+  const m=Q2_MISSIONS.find(x=>x.id===id);
+  _confirmingId=id;
+  const already=G.briefed.has(id);
+  const prodColors={'CLEARPAY':'#00F5A0','MAYA':'#A855F7','CORE':'#00E5FF','PAY':'#FF3860'};
+  const pc=prodColors[m.product]||m.col;
+  document.getElementById('q2m-beacon').textContent='BEACON '+m.beacon;
+  document.getElementById('q2m-product').textContent=m.product;
+  document.getElementById('q2m-product').style.color=pc;
+  document.getElementById('q2m-product').style.borderColor=pc;
+  document.getElementById('q2m-name').textContent=m.name;
+  document.getElementById('q2m-timing').textContent=m.timing;
+  document.getElementById('q2m-obj').textContent=m.obj;
+  document.getElementById('q2m-detail').textContent=m.detail;
+  const btn=document.getElementById('btn-q2m-confirm');
+  if(already){btn.textContent='✓ ALREADY BRIEFED';btn.disabled=true;}
+  else{btn.textContent='CONFIRM MISSION BRIEF ▸';btn.disabled=false;}
+  document.getElementById('s-q2mission').classList.add('active');
+  sndLand();
+}
+function closeQ2Mission(){sndClick();document.getElementById('s-q2mission').classList.remove('active');}
+function confirmMission(){
+  if(!_confirmingId)return;
+  G.briefed.add(_confirmingId);sndGold();
+  document.getElementById('btn-q2m-confirm').textContent='✓ ALREADY BRIEFED';
+  document.getElementById('btn-q2m-confirm').disabled=true;
+  setTimeout(()=>{
+    document.getElementById('s-q2mission').classList.remove('active');
+    buildQ2Map();
+  },600);
+}
+
+// ═══════ Q2 COMPLETE ══════════════════════════════════════════
+function showQ2Complete(){
+  sndWarp();setTimeout(sndUnlock,800);
+  showScreen('s-q2complete','rgba(255,215,0,.3)');
+}
+
+// ═══════ RESTART ══════════════════════════════════════════════
+function restart(){
+  G.explored.clear();G.briefed.clear();G.flying=false;G._warpShown=false;
+  G.shipPos={x:50,y:78};G.q2shipPos={x:50,y:82};
+  document.getElementById('stars').style.display='';
+  document.getElementById('stars2').classList.remove('active');
+  buildQ1Map();showScreen('s-map','rgba(0,229,255,.2)');sndClick();
+}
+
+// ═══════ KEYBOARD ═════════════════════════════════════════════
+const PLANET_ORDER=['core','pay','clearpay','maya'];
+let kIdx=0;
+document.addEventListener('keydown',e=>{
+  const active=document.querySelector('.screen.active');
+  if(!active)return;
+  if(active.id==='s-map'){
+    if(e.key==='ArrowRight'||e.key==='ArrowDown'){kIdx=(kIdx+1)%4;if(!G.flying)flyToQ1Planet(PLANET_ORDER[kIdx]);}
+    if(e.key==='ArrowLeft'||e.key==='ArrowUp'){kIdx=(kIdx-1+4)%4;if(!G.flying)flyToQ1Planet(PLANET_ORDER[kIdx]);}
+  }
+  if(active.id==='s-planet'&&(e.key==='Escape'||e.key==='Backspace'))returnToMap();
+  if(active.id==='s-q2mission'&&e.key==='Escape')closeQ2Mission();
+});
+
+// ═══════ BOOT ═════════════════════════════════════════════════
+window.addEventListener('load',()=>setTimeout(startBoot,200));
+</script>
+</body>
+</html>
