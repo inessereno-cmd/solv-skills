@@ -1,0 +1,41 @@
+name: Update NextCare ClearPay Observatory
+
+on:
+  schedule:
+    # Runs every day at 7:00 AM UTC (2am PT / 3am MT where NextCare operates)
+    - cron: "0 7 * * *"
+  workflow_dispatch:  # allow manual trigger from GitHub Actions UI
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Regenerate observatory HTML
+        env:
+          REDSHIFT_HOST: ${{ secrets.REDSHIFT_HOST }}
+          REDSHIFT_USER: ${{ secrets.REDSHIFT_USER }}
+          REDSHIFT_PASSWORD: ${{ secrets.REDSHIFT_PASSWORD }}
+          REDSHIFT_PORT: ${{ secrets.REDSHIFT_PORT }}
+          REDSHIFT_DBNAME: ${{ secrets.REDSHIFT_DBNAME }}
+          OBSERVATORY_DAYS: "30"
+        run: python scripts/generate_observatory.py
+
+      - name: Commit and push updated HTML
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ines/nextcare-clearpay-observatory.html
+          git diff --cached --quiet || git commit -m "chore: refresh observatory data $(date -u '+%Y-%m-%d')"
+          git push

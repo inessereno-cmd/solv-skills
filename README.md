@@ -19,9 +19,12 @@ Each team member has their own folder:
 
 ## Team pages
 
-| Name | Link |
-|------|------|
-| Ines | [ines/index.html](ines/index.html) |
+| Name | Page | Live URL |
+|------|------|----------|
+| Ines | [Skills](ines/index.html) | https://inessereno-cmd.github.io/solv-skills/ines/index.html |
+| Ines | [NextCare ClearPay Observatory](ines/nextcare-clearpay-observatory.html) | https://inessereno-cmd.github.io/solv-skills/ines/nextcare-clearpay-observatory.html |
+
+The observatory refreshes automatically every day at 7am UTC via GitHub Actions.
 
 ## Skills
 
