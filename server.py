@@ -18,6 +18,14 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
+    def do_GET(self):
+        if self.path == "/":
+            self.send_response(302)
+            self.send_header("Location", "/ines/nextcare-clearpay-observatory.html")
+            self.end_headers()
+        else:
+            super().do_GET()
+
     def log_message(self, format, *args):
         print(f"[{self.date_time_string()}] {format % args}", flush=True)
 
