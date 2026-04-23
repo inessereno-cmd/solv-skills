@@ -9,13 +9,11 @@ LOG="$REPO/scripts/refresh.log"
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting observatory refresh..." | tee -a "$LOG"
 
-# Activate virtualenv if it exists
-if [ -f "$REPO/scripts/.venv/bin/activate" ]; then
-  source "$REPO/scripts/.venv/bin/activate"
-fi
+# Use Homebrew Python which has redshift_connector installed
+PYTHON=/opt/homebrew/bin/python3
 
 # Run the data refresh
-python3 "$REPO/scripts/generate_observatory.py" 2>&1 | tee -a "$LOG"
+$PYTHON "$REPO/scripts/generate_observatory.py" 2>&1 | tee -a "$LOG"
 
 # Commit and push if there are changes
 cd "$REPO"
