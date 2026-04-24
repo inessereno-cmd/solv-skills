@@ -7,6 +7,8 @@ import threading
 import time
 import subprocess
 import sys
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 
@@ -30,8 +32,20 @@ class Handler(SimpleHTTPRequestHandler):
         print(f"[{self.date_time_string()}] {format % args}", flush=True)
 
 
+EASTERN = ZoneInfo("America/New_York")
+REFRESH_HOUR = 3  # 3 AM ET
+
+
+def next_refresh_time():
+    now = datetime.now(EASTERN)
+    target = now.replace(hour=REFRESH_HOUR, minute=0, second=0, microsecond=0)
+    if now >= target:
+        target += timedelta(days=1)
+    return target
+
+
 def refresh_loop():
-    # Refresh immediately on startup, then every 24 hours
+    # Refresh immediately on startup, then every day at 3 AM ET
     while True:
         try:
             print("[refresh] Running observatory data refresh...", flush=True)
@@ -46,7 +60,11 @@ def refresh_loop():
                 print("[refresh] Done.", flush=True)
         except Exception as e:
             print(f"[refresh] Failed: {e}", flush=True)
-        time.sleep(86400)  # 24 hours
+
+        target = next_refresh_time()
+        sleep_secs = (target - datetime.now(EASTERN)).total_seconds()
+        print(f"[refresh] Next refresh at {target.strftime('%Y-%m-%d %H:%M %Z')} ({sleep_secs/3600:.1f}h from now)", flush=True)
+        time.sleep(sleep_secs)
 
 
 if __name__ == "__main__":
